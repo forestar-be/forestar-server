@@ -16,7 +16,7 @@ function pingUrl(url) {
 
 const initPingIntervals = () => {
   logger.info('Starting ping intervals');
-  // setInterval(() => pingUrl(process.env.FRONTEND_URL), interval);
+  setInterval(() => pingUrl(process.env.FRONTEND_URL), interval);
   setInterval(() => pingUrl(`${process.env.API_URL}/health`), interval);
 };
 
