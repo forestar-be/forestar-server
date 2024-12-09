@@ -4,11 +4,14 @@ const logger = require('../config/logger');
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
+const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
 
 const getKey = (role) => {
   switch (role) {
     case 'SUPERVISOR':
       return SUPERVISOR_SECRET_KEY;
+    case 'RENTAL_MANAGER':
+      return RENTAL_MANAGER_SECRET_KEY;
     case 'OPERATOR':
       return OPERATOR_SECRET_KEY;
     case 'ADMIN':
