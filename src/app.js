@@ -1,6 +1,8 @@
 // Load environment variables
 require('dotenv').config();
 
+import rentalMngtRoutes from './routes/rentalMngtRoutes';
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -58,7 +60,8 @@ app.use((req, res, next) => {
 app.use('/operator', authMiddleware, operatorRoutes);
 app.use('/supervisor', authMiddleware, supervisorRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
-app.use('/', publicAuthMiddleware, publicSiteRoutes);
+app.use('/rental-mngt', authMiddleware, rentalMngtRoutes);
+app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 
 // Error-handling middleware
 app.use((err, req, res, next) => {
