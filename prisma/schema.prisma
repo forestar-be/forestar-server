@@ -1,43 +1,44 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["views"]
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model MachineRepair {
   id                    Int                          @id @default(autoincrement())
   first_name            String
   last_name             String
-  address               String
-  postal_code           String?
-  city                  String?
   phone                 String
   email                 String
-  machine_type_id       MachineType?                 @relation("MachineRepairMachineType", fields: [machine_type_name], references: [name], onDelete: SetNull)
-  machine_type_name     String?
   repair_or_maintenance String
   robot_code            String?
-  devis                 Boolean                      @default(false)
-  hivernage             Boolean                      @default(false)
   fault_description     String
-  warranty              Boolean?
-  client_signature      String // URL or path to the PNG file in Supabase storage
-  bucket_name           String // Supabase storage bucket name
-  start_timer           DateTime? // null when timer stopped
-  working_time_in_sec   Int                          @default(0)
-  repairer_id           Repairer?                    @relation("MachineRepairRepairer", fields: [repairer_name], references: [name], onDelete: SetNull)
+  client_signature      String
+  createdAt             DateTime                     @default(now())
+  bucket_name           String
+  address               String
+  state                 String?
+  image_path_list       String[]
   repairer_name         String?
-  brand_id              Brand?                       @relation("MachineRepairBrand", fields: [brand_name], references: [name], onDelete: SetNull)
+  warranty              Boolean?
   brand_name            String?
   remark                String?
+  devis                 Boolean                      @default(false)
+  start_timer           DateTime?
+  working_time_in_sec   Int                          @default(0)
+  city                  String?
+  postal_code           String?
+  machine_type_name     String?
   client_call_times     DateTime[]
+  hivernage             Boolean                      @default(false)
+  brand_id              Brand?                       @relation("MachineRepairBrand", fields: [brand_name], references: [name])
+  machine_type_id       MachineType?                 @relation("MachineRepairMachineType", fields: [machine_type_name], references: [name])
+  repairer_id           Repairer?                    @relation("MachineRepairRepairer", fields: [repairer_name], references: [name])
   replaced_part_list    MachineRepairReplacedParts[]
-  state                 String? // Current state of the repair (e.g., 'pending', 'in-progress', 'completed')
-  image_path_list       String[] // List of URLs or paths to additional files in Supabase storage
-  createdAt             DateTime                     @default(now())
 }
 
 model User {
@@ -46,12 +47,6 @@ model User {
   password  String
   role      Role     @default(OPERATOR)
   createdAt DateTime @default(now())
-}
-
-enum Role {
-  OPERATOR
-  SUPERVISOR
-  ADMIN
 }
 
 model ReplacedParts {
@@ -86,11 +81,50 @@ model MachineRepairReplacedParts {
   machineRepairId  Int
   replacedPartName String
   quantity         Int
-
-  machineRepair MachineRepair @relation(fields: [machineRepairId], references: [id], onDelete: Cascade)
-  replacedPart  ReplacedParts @relation(fields: [replacedPartName], references: [name], onDelete: Cascade)
+  machineRepair    MachineRepair @relation(fields: [machineRepairId], references: [id], onDelete: Cascade)
+  replacedPart     ReplacedParts @relation(fields: [replacedPartName], references: [name], onDelete: Cascade)
 
   @@id([machineRepairId, replacedPartName])
+}
+
+model MachineRented {
+  id                           Int             @id @default(autoincrement())
+  name                         String
+  maintenance_type             MaintenanceType
+  nb_day_before_maintenance    Int?
+  nb_rental_before_maintenance Int?
+  last_maintenance_date        DateTime?
+  machineRentals               MachineRental[]
+}
+
+model MachineRental {
+  id              Int           @id @default(autoincrement())
+  machineRentedId Int
+  rentalDate      DateTime
+  returnDate      DateTime?
+  machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
+}
+
+view MachineRentedWithNextMaintenance {
+  id                           Int              @unique
+  name                         String?
+  maintenance_type             MaintenanceType?
+  nb_day_before_maintenance    Int?
+  nb_rental_before_maintenance Int?
+  last_maintenance_date        DateTime?
+  next_maintenance             DateTime?        @db.Timestamp(6)
+}
+
+enum Role {
+  OPERATOR
+  SUPERVISOR
+  ADMIN
+  RENTAL_MANAGER
+}
+
+enum MaintenanceType {
+  BY_DAY
+  BY_NB_RENTAL
 }
 
 // command to add migration:

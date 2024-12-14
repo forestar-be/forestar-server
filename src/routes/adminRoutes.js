@@ -3,7 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const router = express.Router();
 const { hashPassword } = require('../helper/auth.helper');
-const asyncHandler = require('../helper/asyncHandler');
+const asyncHandler = require('../helper/asyncHandler').default;
 
 router.get(
   '/users',

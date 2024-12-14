@@ -9,7 +9,7 @@ const { hashPassword } = require('../helper/auth.helper');
 const logger = require('../config/logger');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const asyncHandler = require('../helper/asyncHandler');
+const asyncHandler = require('../helper/asyncHandler').default;
 const { generateUniqueString } = require('../helper/common.helper');
 
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
