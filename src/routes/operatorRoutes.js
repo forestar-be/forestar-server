@@ -5,12 +5,12 @@ const { createClient } = require('@supabase/supabase-js');
 const prisma = new PrismaClient();
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-const { hashPassword } = require('../helper/auth.helper');
 const logger = require('../config/logger');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const asyncHandler = require('../helper/asyncHandler').default;
 const { generateUniqueString } = require('../helper/common.helper');
+const { doLogin } = require('../helper/auth.helper');
 
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
 
@@ -173,38 +173,8 @@ router.post(
 router.post(
   '/login',
   asyncHandler(async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      logger.error('Missing required fields');
-      return res
-        .status(400)
-        .json({ message: 'Veuillez remplir tous les champs.' });
-    }
-
-    // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username, role: { in: ['OPERATOR', 'ADMIN'] } },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
-    }
-
-    // Compare the password
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
-      return res.status(401).json({ message: 'Mot de passe incorrect.' });
-    }
-
-    const token = jwt.sign(user, OPERATOR_SECRET_KEY, { expiresIn: '1d' });
-    const expiresAt = Date.now() + 1 * 24 * 60 * 60 * 1000;
-    res.json({
-      authentificated: true,
-      token,
-      expiresAt,
-      isAdmin: user.role === 'ADMIN',
-    });
+    const role = 'OPERATOR';
+    return await doLogin(req, res, role, OPERATOR_SECRET_KEY, prisma);
   }),
 );
 

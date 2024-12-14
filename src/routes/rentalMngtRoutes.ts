@@ -3,17 +3,11 @@ import multer from 'multer';
 import { MachineRental, PrismaClient } from '@prisma/client';
 import asyncHandler from '../helper/asyncHandler';
 import { MachineRented } from '.prisma/client';
+import { doLogin } from '../helper/auth.helper';
 
 const prisma = new PrismaClient();
 const rentalMngtRoutes = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
-const { hashPassword } = require('../helper/auth.helper');
-const logger = require('../config/logger');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const { sendEmail } = require('../helper/mailer');
-const { uploadFileToDrive } = require('../helper/ggdrive');
-const { generateUniqueString } = require('../helper/common.helper');
+import logger from '../config/logger';
 
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
 
@@ -276,39 +270,9 @@ rentalMngtRoutes.put(
 rentalMngtRoutes.post(
   '/login',
   asyncHandler(async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res
-        .status(400)
-        .json({ message: 'Veuillez remplir tous les champs.' });
-    }
-
-    // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username, role: { in: ['RENTAL_MANAGER', 'ADMIN'] } },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
-    }
-
-    // Compare the password
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
-      return res.status(401).json({ message: 'Mot de passe incorrect.' });
-    }
-
-    const token = jwt.sign(user, RENTAL_MANAGER_SECRET_KEY, {
-      expiresIn: '1d',
-    });
-    const expiresAt = Date.now() + 1 * 24 * 60 * 60 * 1000;
-    res.json({
-      authentificated: true,
-      token,
-      expiresAt,
-      isAdmin: user.role === 'ADMIN',
-    });
+    const role = 'RENTAL_MANAGER';
+    const key = RENTAL_MANAGER_SECRET_KEY!;
+    return await doLogin(req, res, role, key, prisma);
   }),
 );
 
