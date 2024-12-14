@@ -276,4 +276,19 @@ rentalMngtRoutes.post(
   }),
 );
 
+rentalMngtRoutes.put(
+  '/machine-rented',
+  asyncHandler(async (req, res) => {
+    const data = req.body as Omit<MachineRented, 'id'>;
+    const result = await prisma.machineRented.create({
+      data: {
+        ...data,
+        id: undefined, // Ensure id is not set manually
+      },
+    });
+
+    res.json(await getMachineRentedViewWithRentals(result.id)(prisma));
+  }),
+);
+
 export default rentalMngtRoutes;
