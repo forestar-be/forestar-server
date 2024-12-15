@@ -5,6 +5,7 @@ SELECT
   mr.nb_day_before_maintenance,
   mr.nb_rental_before_maintenance,
   mr.last_maintenance_date,
+  mr.eventId,
   CASE
     WHEN (
       (

@@ -65,7 +65,7 @@ app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 
 // Error-handling middleware
 app.use((err, req, res, next) => {
-  logger.error(`Error occurred: ${err.message}`);
+  logger.error(`Error occurred: ${err.message} ${err.stack}`);
   res.status(500).send('Internal Server Error');
 });
 

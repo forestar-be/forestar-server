@@ -94,6 +94,7 @@ model MachineRented {
   nb_day_before_maintenance    Int?
   nb_rental_before_maintenance Int?
   last_maintenance_date        DateTime?
+  eventId                      String? // Google Calendar event ID
   machineRentals               MachineRental[]
 }
 
@@ -113,6 +114,7 @@ view MachineRentedWithNextMaintenance {
   nb_rental_before_maintenance Int?
   last_maintenance_date        DateTime?
   next_maintenance             DateTime?        @db.Timestamp(6)
+  eventId                      String?
 }
 
 enum Role {
