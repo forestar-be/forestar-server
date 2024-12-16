@@ -92,7 +92,7 @@ function getMachineRentedViewWithRentals(idParsed: number) {
       findMany: (arg0: { where: { machineRentedId: number } }) => any;
     };
   }) => {
-    const machineRented =
+    const machineRented: MachineRentedWithNextMaintenance =
       await prisma.machineRentedWithNextMaintenance.findUnique({
         where: { id: idParsed },
       });
@@ -101,9 +101,11 @@ function getMachineRentedViewWithRentals(idParsed: number) {
       throw new Error('Machine rented not found');
     }
 
-    const machineRentals = await prisma.machineRental.findMany({
-      where: { machineRentedId: idParsed },
-    });
+    const machineRentals: MachineRental[] = await prisma.machineRental.findMany(
+      {
+        where: { machineRentedId: idParsed },
+      },
+    );
 
     return { ...machineRented, machineRentals };
   };
@@ -129,42 +131,56 @@ const machineRentedNotFound = 'Machine rented not found';
 const getEventUpdateAction = (
   currentMachine: MachineRentedWithNextMaintenance,
   updatedMachine: MachineRentedWithNextMaintenance,
+  dbUpdateType: 'update' | 'create' | 'delete',
 ): 'update' | 'create' | 'delete' | 'none' => {
-  // if next_maintenance not updated, and same name, none
-  if (
-    currentMachine.name === updatedMachine.name &&
-    currentMachine.next_maintenance === updatedMachine.next_maintenance
-  ) {
-    return 'none';
+  if (dbUpdateType === 'create') {
+    return updatedMachine.next_maintenance ? 'create' : 'none';
   }
 
-  // if the only change is the last maintenance date, and if the new date is in the future from the previous date, then we should create new event for next maintenance
-  if (
-    currentMachine.name === updatedMachine.name &&
-    currentMachine.maintenance_type === updatedMachine.maintenance_type &&
-    ((updatedMachine.maintenance_type === 'BY_DAY' &&
-      updatedMachine.nb_day_before_maintenance ===
-        currentMachine.nb_day_before_maintenance) ||
-      (updatedMachine.maintenance_type === 'BY_NB_RENTAL' &&
-        updatedMachine.nb_rental_before_maintenance ===
-          currentMachine.nb_rental_before_maintenance &&
-        currentMachine.last_maintenance_date !==
-          updatedMachine.last_maintenance_date &&
-        currentMachine.last_maintenance_date &&
+  if (dbUpdateType === 'delete') {
+    return currentMachine.eventId ? 'delete' : 'none';
+  }
+
+  if (dbUpdateType === 'update') {
+    // if next_maintenance not updated, and same name, none
+    if (
+      currentMachine.name === updatedMachine.name &&
+      currentMachine.next_maintenance?.getTime() ===
+        updatedMachine.next_maintenance?.getTime()
+    ) {
+      return 'none';
+    }
+
+    // if the only change is the last maintenance date, and if the new date is in the future from the previous date, then we should create new event for next maintenance
+    if (
+      currentMachine.name === updatedMachine.name &&
+      currentMachine.maintenance_type === updatedMachine.maintenance_type &&
+      ((updatedMachine.maintenance_type === 'BY_DAY' &&
+        updatedMachine.nb_day_before_maintenance ===
+          currentMachine.nb_day_before_maintenance) ||
+        (updatedMachine.maintenance_type === 'BY_NB_RENTAL' &&
+          updatedMachine.nb_rental_before_maintenance ===
+            currentMachine.nb_rental_before_maintenance)) &&
+      currentMachine.last_maintenance_date !==
         updatedMachine.last_maintenance_date &&
-        new Date(updatedMachine.last_maintenance_date).getTime() >
-          new Date(currentMachine.last_maintenance_date).getTime()))
-  ) {
-    return 'create';
+      currentMachine.last_maintenance_date &&
+      updatedMachine.last_maintenance_date &&
+      new Date(updatedMachine.last_maintenance_date).getTime() >
+        new Date(currentMachine.last_maintenance_date).getTime()
+    ) {
+      return 'create';
+    }
+
+    if (updatedMachine.next_maintenance) {
+      return currentMachine.next_maintenance && updatedMachine.eventId
+        ? 'update'
+        : 'create';
+    }
+
+    return currentMachine.next_maintenance ? 'delete' : 'update';
   }
 
-  if (updatedMachine.next_maintenance) {
-    return currentMachine.next_maintenance && updatedMachine.eventId
-      ? 'update'
-      : 'create';
-  }
-
-  return currentMachine.next_maintenance ? 'delete' : 'update';
+  throw new Error('Unexpected dbUpdateType');
 };
 
 async function updateCalendarEvent(
@@ -172,8 +188,13 @@ async function updateCalendarEvent(
   updatedMachine: MachineRentedWithNextMaintenance,
   prisma: any,
   idParsed: number,
+  dbUpdateType: 'update' | 'create' | 'delete' = 'update',
 ) {
-  const eventUpdateType = getEventUpdateAction(existingMachine, updatedMachine);
+  const eventUpdateType = getEventUpdateAction(
+    existingMachine,
+    updatedMachine,
+    dbUpdateType,
+  );
 
   // Calendar Event Handling
   switch (eventUpdateType) {
@@ -216,6 +237,8 @@ async function updateCalendarEvent(
     default:
       break;
   }
+
+  return eventUpdateType;
 }
 
 rentalMngtRoutes.patch(
@@ -223,7 +246,10 @@ rentalMngtRoutes.patch(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body as Partial<MachineRented>;
+    const data = req.body as Partial<MachineRented> & {
+      machineRentals?: MachineRental[];
+    };
+    const { machineRentals, ...dataWithoutRentals } = data;
 
     try {
       const result = await prisma.$transaction(async (prisma) => {
@@ -237,30 +263,71 @@ rentalMngtRoutes.patch(
           throw new Error(machineRentedNotFound);
         }
 
-        // Update machineRented
-        await prisma.machineRented.update({
-          where: { id: idParsed },
-          data,
-        });
+        if (machineRentals) {
+          // update each rental, if not exists, create, if not in data, delete
+          const existingRentals = await prisma.machineRental.findMany({
+            where: { machineRentedId: idParsed },
+          });
+
+          const existingRentalsIds = existingRentals.map((r) => r.id);
+          const dataRentalsIds = machineRentals.map((r) => r.id);
+
+          const toDelete = existingRentalsIds.filter(
+            (id) => !dataRentalsIds.includes(id),
+          );
+          const toUpdate = existingRentalsIds.filter((id) =>
+            dataRentalsIds.includes(id),
+          );
+          const toCreate = machineRentals.filter(
+            (r) => !r.id || (r.id && !existingRentalsIds.includes(r.id)),
+          );
+
+          await prisma.machineRental.deleteMany({
+            where: { id: { in: toDelete } },
+          });
+
+          await Promise.all(
+            toUpdate.map((id) =>
+              prisma.machineRental.update({
+                where: { id },
+                data: machineRentals.find((r) => r.id === id)!,
+              }),
+            ),
+          );
+
+          await Promise.all(
+            toCreate.map((r) =>
+              prisma.machineRental.create({
+                data: { ...r, machineRentedId: idParsed },
+              }),
+            ),
+          );
+        }
+
+        if (dataWithoutRentals) {
+          await prisma.machineRented.update({
+            where: { id: idParsed },
+            data: dataWithoutRentals,
+          });
+        }
 
         const updatedMachine =
-          await prisma.machineRentedWithNextMaintenance.findUnique({
-            where: { id: idParsed },
-          });
+          await getMachineRentedViewWithRentals(idParsed)(prisma);
 
         if (!updatedMachine) {
           throw new Error(
             `Unexpected error: Machine rented with id ${idParsed} not found after update`,
           );
         }
-        await updateCalendarEvent(
+
+        const eventUpdateType = await updateCalendarEvent(
           existingMachine,
           updatedMachine,
           prisma,
           idParsed,
         );
 
-        return updatedMachine;
+        return { ...updatedMachine, eventUpdateType };
       });
 
       res.json(result);
@@ -282,13 +349,21 @@ rentalMngtRoutes.delete(
     const result = await prisma
       .$transaction(async (prisma) => {
         // check if exists
-        const machineRented = await prisma.machineRented.findUnique({
-          where: { id: idParsed },
-        });
+        const machineRented =
+          await prisma.machineRentedWithNextMaintenance.findUnique({
+            where: { id: idParsed },
+          });
 
         if (!machineRented) {
           throw new Error(machineRentedNotFound);
         }
+
+        await updateCalendarEvent(
+          machineRented,
+          machineRented,
+          prisma,
+          idParsed,
+        );
 
         return prisma.machineRented.delete({
           where: { id: idParsed },
@@ -361,7 +436,18 @@ rentalMngtRoutes.put(
       },
     });
 
-    res.json(await getMachineRentedViewWithRentals(result.id)(prisma));
+    const machineRented = await getMachineRentedViewWithRentals(result.id)(
+      prisma,
+    );
+
+    await updateCalendarEvent(
+      machineRented,
+      machineRented,
+      prisma,
+      machineRented.id,
+    );
+
+    res.json(machineRented);
   }),
 );
 
