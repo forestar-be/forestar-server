@@ -11,6 +11,7 @@ const asyncHandler = require('../helper/asyncHandler').default;
 const { sendEmail } = require('../helper/mailer');
 const { uploadFileToDrive } = require('../helper/ggdrive');
 const { generateUniqueString } = require('../helper/common.helper');
+const { getImageUrl } = require('../helper/supabase.helper');
 
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 
@@ -79,18 +80,6 @@ router.post(
   }),
 );
 
-async function getImageUrl(bucket_name, image_path) {
-  const { data, error } = await supabase.storage
-    .from(bucket_name)
-    .createSignedUrl(image_path, 10 * 60);
-
-  if (error) {
-    throw error;
-  }
-
-  return data.signedUrl;
-}
-
 const notFoundImage =
   'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png';
 
@@ -122,7 +111,7 @@ router.get(
 
     const getSignedUrl = async (path) => {
       try {
-        return await getImageUrl(bucket_name, path);
+        return await getImageUrl(supabase, bucket_name, image_path);
       } catch (error) {
         if (
           error.name === 'StorageApiError' &&
@@ -173,7 +162,14 @@ router.delete(
     }
 
     try {
-      await supabase.storage.from(bucket_name).remove([image_path]);
+      const { error: removeError } = await supabase.storage
+        .from(bucket_name)
+        .remove([image_path]);
+      if (removeError) {
+        throw new Error(
+          `Erreur lors de la suppression de l'image : ${removeError.message}`,
+        );
+      }
       const newImagePathList = image_path_list.filter(
         (path) => path !== image_path,
       );
@@ -186,11 +182,11 @@ router.delete(
 
       const imageUrls = await Promise.all(
         newImagePathList.map(async (image_path) => {
-          return await getImageUrl(bucket_name, image_path);
+          return await getImageUrl(supabase, bucket_name, image_path);
         }),
       );
 
-      res.json({ message: 'Image supprimée avec succès.', imageUrls });
+      res.json({ message: 'Succès.', imageUrls });
     } catch (error) {
       logger.error(error);
       res.status(500).json({ error: error.message });
@@ -246,7 +242,7 @@ router.put(
 
     const imageUrls = await Promise.all(
       newImagePathList.map(async (image_path) => {
-        return await getImageUrl(bucket_name, image_path);
+        return await getImageUrl(supabase, bucket_name, image_path);
       }),
     );
 
@@ -342,13 +338,23 @@ router.delete(
         await Promise.all(
           image_path_list.map(async (image_path) => {
             logger.info(`Deleting image: ${image_path} in ${bucket_name}`);
-            await supabase.storage.from(bucket_name).remove([image_path]);
+            const { error: removeError } = await supabase.storage
+              .from(bucket_name)
+              .remove([image_path]);
+            if (removeError) {
+              throw new Error(`Prisma error: ${removeError.message}`);
+            }
           }),
         );
         logger.info(
           `Deleting signature: ${client_signature} in ${bucket_name}`,
         );
-        await supabase.storage.from(bucket_name).remove([client_signature]);
+        const { error: removeError } = await supabase.storage
+          .from(bucket_name)
+          .remove([client_signature]);
+        if (removeError) {
+          throw new Error(`Prisma error: ${removeError.message}`);
+        }
       } catch (error) {
         logger.error(error);
         return res.status(500).json({ error: error.message });

@@ -5,7 +5,9 @@ SELECT
   mr.nb_day_before_maintenance,
   mr.nb_rental_before_maintenance,
   mr.last_maintenance_date,
-  mr.eventId,
+  mr."eventId",
+  mr.bucket_name,
+  mr.image_path,
   CASE
     WHEN (
       (
@@ -20,27 +22,31 @@ SELECT
     )
     WHEN (
       mr.maintenance_type = 'BY_NB_RENTAL' :: "MaintenanceType"
-    ) THEN (
-      CASE
-        WHEN (
+    ) THEN CASE
+      WHEN (
+        (
           SELECT
-            COUNT(*)
+            count(*) AS count
           FROM
             "MachineRental"
           WHERE
-            "MachineRental"."machineRentedId" = mr.id
-            AND "MachineRental"."rentalDate" > mr.last_maintenance_date
-        ) >= mr.nb_rental_before_maintenance THEN (
-          SELECT
-            max("MachineRental"."returnDate")
-          FROM
-            "MachineRental"
-          WHERE
-            "MachineRental"."machineRentedId" = mr.id
-        )
-        ELSE NULL
-      END
-    )
+            (
+              ("MachineRental"."machineRentedId" = mr.id)
+              AND (
+                "MachineRental"."rentalDate" > mr.last_maintenance_date
+              )
+            )
+        ) >= mr.nb_rental_before_maintenance
+      ) THEN (
+        SELECT
+          max("MachineRental"."returnDate") AS max
+        FROM
+          "MachineRental"
+        WHERE
+          ("MachineRental"."machineRentedId" = mr.id)
+      )
+      ELSE NULL :: timestamp without time zone
+    END
     ELSE NULL :: timestamp without time zone
   END AS next_maintenance
 FROM

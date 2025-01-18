@@ -7,6 +7,7 @@ import {
 import asyncHandler from '../helper/asyncHandler';
 import { MachineRented } from '.prisma/client';
 import { doLogin } from '../helper/auth.helper';
+import { createClient } from '@supabase/supabase-js';
 
 const prisma = new PrismaClient();
 const rentalMngtRoutes = express.Router();
@@ -16,8 +17,35 @@ import {
   deleteEvent,
   updateEvent,
 } from '../helper/calendar.helper';
+import multer from 'multer';
+import { generateUniqueString } from '../helper/common.helper';
+import { getImageUrl } from '../helper/supabase.helper';
+const upload = multer({ storage: multer.memoryStorage() });
 
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
+const BUCKET_NAME = process.env.BUCKET_IMAGE_MACHINES;
+
+if (!RENTAL_MANAGER_SECRET_KEY) {
+  throw new Error('RENTAL_MANAGER_SECRET_KEY is not set');
+}
+
+if (!BUCKET_NAME) {
+  throw new Error('BUCKET_IMAGE_MACHINES is not set');
+}
+
+if (!process.env.SUPABASE_URL) {
+  throw new Error('SUPABASE_URL is not set');
+}
+
+if (!process.env.SUPABASE_KEY) {
+  throw new Error('SUPABASE_KEY is not set');
+}
+
+// Initialize Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY,
+);
 
 rentalMngtRoutes.post(
   '/machine-rented',
@@ -122,7 +150,15 @@ rentalMngtRoutes.get(
       getMachineRentedViewWithRentals(idParsed),
     );
 
-    res.json(result);
+    const { bucket_name, image_path, ...machineRented } = result;
+
+    res.json({
+      ...machineRented,
+      imageUrl:
+        bucket_name && image_path
+          ? await getImageUrl(supabase, bucket_name, image_path)
+          : undefined,
+    });
   }),
 );
 
@@ -242,6 +278,64 @@ async function updateCalendarEvent(
 }
 
 rentalMngtRoutes.patch(
+  '/machine-rented/:id/image',
+  upload.single('image'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const { id } = req.params;
+    const machineRented = await prisma.machineRented.findUnique({
+      where: { id: parseInt(id) },
+      select: { bucket_name: true, image_path: true },
+    });
+
+    if (!machineRented) {
+      return res.status(404).json({ message: 'Machine rented not found' });
+    }
+
+    const { bucket_name: _bucket_name, image_path } = machineRented;
+
+    const bucket_name: string = _bucket_name || BUCKET_NAME;
+
+    if (image_path) {
+      // try to delete
+      const { error: deleteError } = await supabase.storage
+        .from(bucket_name)
+        .remove([image_path]);
+      if (deleteError) {
+        throw new Error(
+          `Erreur lors de la suppression de l'image : ${deleteError.message}`,
+        );
+      }
+    }
+
+    const webpBuffer = req.file.buffer; // WebP image buffer
+    const fileName = req.file.originalname;
+    const imagePath = `images/${generateUniqueString()}_${fileName}`;
+
+    const { data: imageUpload, error: imageError } = await supabase.storage
+      .from(bucket_name)
+      .upload(imagePath, webpBuffer, {
+        contentType: 'image/webp',
+      });
+
+    if (imageError) {
+      throw new Error(
+        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
+      );
+    }
+    await prisma.machineRented.update({
+      where: { id: parseInt(id) },
+      data: { image_path: imagePath },
+    });
+
+    res.json({ imageUrl: await getImageUrl(supabase, bucket_name, imagePath) });
+  }),
+);
+
+rentalMngtRoutes.patch(
   '/machine-rented/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -249,7 +343,8 @@ rentalMngtRoutes.patch(
     const data = req.body as Partial<MachineRented> & {
       machineRentals?: MachineRental[];
     };
-    const { machineRentals, ...dataWithoutRentals } = data;
+    const { machineRentals, image_path, bucket_name, ...dataWithoutRentals } =
+      data;
 
     try {
       const result = await prisma.$transaction(async (prisma) => {
@@ -427,12 +522,66 @@ rentalMngtRoutes.post(
 
 rentalMngtRoutes.put(
   '/machine-rented',
+  upload.single('image'),
   asyncHandler(async (req, res) => {
-    const data = req.body as Omit<MachineRented, 'id'>;
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const data = req.body as { [K in keyof MachineRented]: string };
+
+    const bucket_name = BUCKET_NAME;
+    const fileName = req.file.originalname;
+    const imagePath = `images/${generateUniqueString()}_${fileName}`;
+    const webpBuffer = req.file.buffer; // WebP image buffer
+
+    const { data: imageUpload, error: imageError } = await supabase.storage
+      .from(bucket_name)
+      .upload(imagePath, webpBuffer, {
+        contentType: 'image/webp',
+      });
+
+    if (imageError) {
+      throw new Error(
+        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
+      );
+    }
+
+    if (data.maintenance_type === 'BY_NB_RENTAL') {
+      if (!data.nb_rental_before_maintenance) {
+        throw new Error('nb_rental_before_maintenance is required');
+      }
+    }
+
+    if (data.maintenance_type === 'BY_DAY') {
+      if (!data.nb_day_before_maintenance) {
+        throw new Error('nb_day_before_maintenance is required');
+      }
+    }
+
+    if (
+      data.maintenance_type !== 'BY_DAY' &&
+      data.maintenance_type !== 'BY_NB_RENTAL'
+    ) {
+      throw new Error('maintenance_type must be BY_DAY or BY_NB_RENTAL');
+    }
+
     const result = await prisma.machineRented.create({
       data: {
-        ...data,
-        id: undefined, // Ensure id is not set manually
+        name: data.name,
+        maintenance_type:
+          data.maintenance_type === 'BY_DAY' ? 'BY_DAY' : 'BY_NB_RENTAL',
+        last_maintenance_date: data.last_maintenance_date
+          ? new Date(data.last_maintenance_date)
+          : undefined,
+        nb_day_before_maintenance: data.nb_day_before_maintenance
+          ? parseInt(data.nb_day_before_maintenance)
+          : undefined,
+        nb_rental_before_maintenance: data.nb_rental_before_maintenance
+          ? parseInt(data.nb_rental_before_maintenance)
+          : undefined,
+        image_path: imagePath,
+        bucket_name,
       },
     });
 
