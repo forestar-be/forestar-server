@@ -19,7 +19,7 @@ import {
 } from '../helper/calendar.helper';
 import multer from 'multer';
 import { generateUniqueString } from '../helper/common.helper';
-import { getImageUrl } from '../helper/supabase.helper';
+import { getImageUrl, notFoundImage } from '../helper/supabase.helper';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
@@ -157,7 +157,7 @@ rentalMngtRoutes.get(
       imageUrl:
         bucket_name && image_path
           ? await getImageUrl(supabase, bucket_name, image_path)
-          : undefined,
+          : notFoundImage,
     });
   }),
 );
