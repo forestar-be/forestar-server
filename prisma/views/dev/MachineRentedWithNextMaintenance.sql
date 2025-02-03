@@ -8,6 +8,8 @@ SELECT
   mr."eventId",
   mr.bucket_name,
   mr.image_path,
+  mr.price_per_day,
+  mr.guests,
   CASE
     WHEN (
       (

@@ -1,7 +1,10 @@
 // Load environment variables
+import { initMaintenanceReminderCron } from './helper/maintenanceReminder';
+
 require('dotenv').config();
 
 import rentalMngtRoutes from './routes/rentalMngtRoutes';
+import { initRefreshTokenCron } from './helper/authGoogle';
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -14,7 +17,7 @@ const operatorRoutes = require('./routes/operatorRoutes');
 const supervisorRoutes = require('./routes/supervisorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 // const rateLimit = require('express-rate-limit');
-const { initPingIntervals } = require('./helper/pingInterval');
+const { initPingCron } = require('./helper/pingInterval');
 
 const app = express();
 const port = 3001;
@@ -66,12 +69,13 @@ app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 // Error-handling middleware
 app.use((err, req, res, next) => {
   logger.error(`Error occurred: ${err.message} ${err.stack}`);
-  res.status(500).send('Internal Server Error');
+  res.status(500).send(`Internal Server Error: ${err.message}`);
 });
 
 // Démarrage du serveur
 app.listen(port, () => {
   logger.info(`Serveur en écoute sur le port ${port}`);
-  // useful to keep the servers awake
-  initPingIntervals();
+  initPingCron(); // useful to keep the servers awake
+  initMaintenanceReminderCron();
+  initRefreshTokenCron();
 });

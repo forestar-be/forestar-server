@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rappel de Maintenance</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          background-color: #f4f4f4;
+          margin: 0;
+          padding: 20px;
+      }
+      .container {
+          max-width: 600px;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+          margin: auto;
+      }
+      .banner {
+          background: linear-gradient(90deg, #E63946, #457B9D);
+          padding: 15px;
+          text-align: center;
+          color: white;
+          font-size: 1.5em;
+          font-weight: bold;
+          border-top-left-radius: 8px;
+          border-top-right-radius: 8px;
+      }
+      .header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 20px 0;
+      }
+      .logo {
+          height: 50px;
+      }
+      .brand-name {
+          font-size: 1.5em;
+          font-weight: bold;
+          color: #E63946;
+      }
+      h1 {
+          color: #333;
+      }
+      p {
+          color: #555;
+      }
+      .footer {
+          margin-top: 20px;
+          font-size: 0.9em;
+          color: #777;
+      }
+      a {
+          color: #457B9D;
+          text-decoration: none;
+      }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="banner">Forestar Shop Atelier</div>
+  <h1>Rappel de maintenance à venir</h1>
+  <p>Bonjour,</p>
+  <p>Ce message est un rappel concernant la prochaine maintenance de votre machine prévue dans {{nb_days_remaining}} jours :</p>
+  <ul>
+    <li><strong>Nom de la machine :</strong> {{machine_name}}</li>
+    <li><strong>Date de la prochaine maintenance :</strong> {{next_maintenance_date}}</li>
+    <li><strong>Type de maintenance :</strong> {{maintenance_type}}</li>
+  </ul>
+  <p>Nous vous recommandons de planifier cette maintenance afin d’assurer le bon fonctionnement de votre équipement.</p>
+  <p>Après avoir effectué la maintenance, veuillez mettre à jour la date de la dernière maintenance à partir de la page de la machine: <a href="{{machine_page_link}}">{{machine_page_link}}</a>.</p>
+  <p>En cas de question, n’hésitez pas à nous contacter.</p>
+  <p>Cordialement,</p>
+  <p>L'équipe de Forestar Shop Atelier</p>
+  <div class="footer">
+    <p>Ce message est généré automatiquement.</p>
+  </div>
+</div>
+</body>
+</html>
