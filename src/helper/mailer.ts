@@ -1,5 +1,17 @@
-const nodemailer = require('nodemailer');
-const logger = require('../config/logger');
+import logger from '../config/logger';
+import nodemailer from 'nodemailer';
+
+if (!process.env.EMAIL_SERVICE) {
+  throw new Error('EMAIL_SERVICE is not defined');
+}
+
+if (!process.env.EMAIL_USER) {
+  throw new Error('EMAIL_USER is not defined');
+}
+
+if (!process.env.EMAIL_PASS) {
+  throw new Error('EMAIL_PASS is not defined');
+}
 
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE,
@@ -12,13 +24,20 @@ const transporter = nodemailer.createTransport({
 let lastSentTime = 0;
 const COOLDOWN_PERIOD = 1000 * 20; // 20 seconds
 
-const sendEmail = async ({
+export const sendEmail = async ({
   to,
   subject,
   html,
   attachments,
   replyTo,
   fromName = null,
+}: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  attachments?: any[];
+  replyTo?: string;
+  fromName?: string | null;
 }) => {
   const currentTime = Date.now();
   const diff = currentTime - lastSentTime;
@@ -44,5 +63,3 @@ const sendEmail = async ({
 
   lastSentTime = currentTime;
 };
-
-module.exports = { sendEmail };

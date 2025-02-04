@@ -1,3 +1,5 @@
+import { sendEmail } from '../helper/mailer';
+
 const express = require('express');
 const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
@@ -8,7 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const { doLogin } = require('../helper/auth.helper');
 const logger = require('../config/logger');
 const asyncHandler = require('../helper/asyncHandler').default;
-const { sendEmail } = require('../helper/mailer');
+
 const { uploadFileToDrive } = require('../helper/ggdrive');
 const { generateUniqueString } = require('../helper/common.helper');
 const { getImageUrl } = require('../helper/supabase.helper');

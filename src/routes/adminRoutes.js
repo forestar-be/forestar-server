@@ -3,6 +3,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const router = express.Router();
 const { hashPassword } = require('../helper/auth.helper');
+const {
+  isAuthenticated,
+  getAuthUrl,
+  authenticate,
+} = require('../helper/authGoogle');
 const asyncHandler = require('../helper/asyncHandler').default;
 
 router.get(
@@ -17,7 +22,6 @@ router.get(
         id: true,
         username: true,
         role: true,
-        // Add other fields you want to retrieve, but exclude password
       },
     });
     res.json(users);
@@ -86,6 +90,34 @@ router.put(
       data: { username, password: hashedPassword, role },
     });
     res.json(newUser);
+  }),
+);
+
+router.get(
+  '/auth/google/url',
+  asyncHandler(async (req, res) => {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+
+    if (isAuthenticated()) {
+      return res.status(200).json({ message: 'Déjà authentifié' });
+    }
+
+    const url = getAuthUrl();
+
+    res.status(200).json({ url });
+  }),
+);
+
+router.get(
+  '/auth/google/is-authenticated',
+  asyncHandler(async (req, res) => {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+
+    res.status(200).json({ isAuthenticated: isAuthenticated() });
   }),
 );
 

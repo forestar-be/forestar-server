@@ -1,7 +1,10 @@
+import { sendEmail } from '../helper/mailer';
+import { authenticate, isAuthenticated } from '../helper/authGoogle';
+import asyncHandler from '../helper/asyncHandler';
+
 const express = require('express');
 const axios = require('axios');
 const logger = require('../config/logger');
-const { sendEmail } = require('../helper/mailer');
 
 const router = express.Router();
 
@@ -45,5 +48,23 @@ router.post('/submit-form', async (req, res) => {
 router.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
+
+// used as redirect URL for Google OAuth
+router.get(
+  '/oauth/google/callback',
+  asyncHandler(async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).json({ message: 'Code manquant' });
+    }
+    if (isAuthenticated()) {
+      return res.status(200).json({ message: 'Déjà authentifié' });
+    }
+
+    await authenticate(code);
+
+    res.status(200).json({ message: 'Authentification réussie' });
+  }),
+);
 
 module.exports = router;

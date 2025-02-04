@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model MachineRepair {
@@ -97,6 +98,8 @@ model MachineRented {
   eventId                      String?
   bucket_name                  String?
   image_path                   String?
+  price_per_day                Float           @default(0)
+  guests                       String[]        @default([])
   machineRentals               MachineRental[]
 }
 
@@ -105,6 +108,16 @@ model MachineRental {
   machineRentedId Int
   rentalDate      DateTime
   returnDate      DateTime?
+  clientAddress   String        @default("")
+  clientCity      String        @default("")
+  clientEmail     String        @default("")
+  clientFirstName String        @default("")
+  clientLastName  String        @default("")
+  clientPhone     String        @default("")
+  clientPostal    String        @default("")
+  paid            Boolean       @default(false)
+  guests          String[]      @default([])
+  eventId         String
   machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
@@ -118,6 +131,8 @@ view MachineRentedWithNextMaintenance {
   eventId                      String?
   bucket_name                  String?
   image_path                   String?
+  price_per_day                Float?
+  guests                       String[]
   next_maintenance             DateTime?        @db.Timestamp(6)
 }
 

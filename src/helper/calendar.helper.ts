@@ -1,24 +1,38 @@
-import { calendar_v3, google } from 'googleapis';
-const calendarId = process.env.GOOGLE_CALENDAR_ID;
+import { google } from 'googleapis';
+import { getOAuth2Client, isAuthenticated } from './authGoogle';
+export const calendarEntretienId: string =
+  process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!;
+export const calendarRentalId: string = process.env.GOOGLE_CALENDAR_RENTAL_ID!;
 
-if (!calendarId) {
-  throw new Error('GOOGLE_CALENDAR_ID environment variable is required');
+if (!calendarEntretienId) {
+  throw new Error(
+    'GOOGLE_CALENDAR_ENTRETIEN_ID environment variable is required',
+  );
+}
+
+if (!calendarRentalId) {
+  throw new Error('GOOGLE_CALENDAR_RENTAL_ID environment variable is required');
 }
 
 if (!process.env.KEY_FILE) {
   throw new Error('KEY_FILE environment variable is required');
 }
 
-const calendar = google.calendar({
-  version: 'v3',
-  auth: new google.auth.GoogleAuth({
-    keyFile: process.env.KEY_FILE,
-    scopes: ['https://www.googleapis.com/auth/calendar'],
-  }),
-});
+// we use calendar api authenticated with google oauth2 instead of service account
+// because only google workspace accounts are allowed to add attendees to events with service account
+const getGgCalendar = () => {
+  if (!isAuthenticated()) {
+    throw new Error('Google Calendar is not authenticated');
+  }
 
-const getEventDate = (date: Date) =>
-  date
+  return google.calendar({
+    version: 'v3',
+    auth: getOAuth2Client(),
+  });
+};
+
+const getEventDate = (date: Date) => {
+  return date
     .toLocaleString('fr-FR', {
       timeZone: 'Europe/Paris',
     })
@@ -26,23 +40,32 @@ const getEventDate = (date: Date) =>
     .split('/')
     .reverse()
     .join('-');
+};
 
-export async function createEvent(eventDetails: {
-  summary: string;
-  description: string;
-  start: Date;
-  end: Date;
-}) {
+export async function createEvent(
+  eventDetails: {
+    summary: string;
+    description: string;
+    start: Date;
+    end: Date;
+  },
+  calendarId: string,
+  attendeesEmails?: string[],
+) {
+  const calendar = getGgCalendar();
   const response = await calendar.events.insert({
     calendarId,
     requestBody: {
+      attendees: attendeesEmails?.map((email) => ({ email })),
       summary: eventDetails.summary,
       description: eventDetails.description,
       start: {
         date: getEventDate(eventDetails.start),
+        timeZone: 'Europe/Paris',
       },
       end: {
         date: getEventDate(eventDetails.end),
+        timeZone: 'Europe/Paris',
       },
     },
   });
@@ -57,11 +80,15 @@ export async function updateEvent(
     start: Date;
     end: Date;
   }>,
+  calendarId: string,
+  attendeesEmails?: string[],
 ) {
+  const calendar = getGgCalendar();
   await calendar.events.patch({
     calendarId,
     eventId,
     requestBody: {
+      attendees: attendeesEmails?.map((email) => ({ email })),
       summary: updates.summary,
       description: updates.description,
       start: {
@@ -74,9 +101,33 @@ export async function updateEvent(
   });
 }
 
-export async function deleteEvent(eventId: string) {
+export async function deleteEvent(eventId: string, calendarId: string) {
+  const calendar = getGgCalendar();
   await calendar.events.delete({
     calendarId,
     eventId,
   });
 }
+
+export const getEvent = async (eventId: string, calendarId: string) => {
+  const calendar = getGgCalendar();
+  const response = await calendar.events.get({
+    calendarId,
+    eventId,
+  });
+  return response.data;
+};
+
+export const getEventsFromIdList = async (
+  eventIdList: string[],
+  calendarId: string,
+) => {
+  const calendar = getGgCalendar();
+  const promises = eventIdList.map((eventId) =>
+    calendar.events.get({
+      calendarId,
+      eventId,
+    }),
+  );
+  return await Promise.all(promises);
+};
