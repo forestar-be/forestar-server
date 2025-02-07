@@ -478,6 +478,7 @@ rentalMngtRoutes.delete(
           machineRented,
           prisma,
           idParsed,
+          'delete',
         );
 
         return prisma.machineRented.delete({
@@ -638,6 +639,7 @@ rentalMngtRoutes.put(
       machineRented,
       prisma,
       machineRented.id,
+      'create',
     );
 
     res.json(machineRented);
