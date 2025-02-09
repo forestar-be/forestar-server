@@ -515,13 +515,14 @@ router.get(
 router.get(
   '/allConfig',
   asyncHandler(async (req, res) => {
-    const [brands, repairerNames, replacedParts, config, machineType] =
+    const [brands, repairerNames, replacedParts, config, machineType, robotType] =
       await prisma.$transaction([
         prisma.brand.findMany(),
         prisma.repairer.findMany(),
         prisma.replacedParts.findMany(),
         prisma.config.findMany(),
         prisma.machineType.findMany(),
+        prisma.robotType.findMany(),
       ]);
     res.json({
       brands: brands.map((brand) => brand.name),
@@ -531,6 +532,7 @@ router.get(
         return { ...acc, [key]: value };
       }, {}),
       machineType: machineType.map((type) => type.name),
+      robotType: robotType.map((type) => type.name),
     });
   }),
 );
@@ -724,6 +726,39 @@ router.delete(
     }
     await prisma.machineType.delete({ where: { name } });
     res.json(machineType);
+  }),
+);
+
+router.get(
+  '/robot-types',
+  asyncHandler(async (req, res) => {
+    const robotTypes = await prisma.robotType.findMany();
+    res.json(robotTypes.map((type) => type.name));
+  }),
+);
+
+router.put(
+  '/robot-types',
+  asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: 'Veuillez fournir un nom.' });
+    }
+    const robotType = await prisma.robotType.create({ data: { name } });
+    res.json(robotType);
+  }),
+);
+
+router.delete(
+  '/robot-types/:name',
+  asyncHandler(async (req, res) => {
+    const { name } = req.params;
+    const robotType = await prisma.robotType.findUnique({ where: { name } });
+    if (!robotType) {
+      return res.status(404).json({ message: 'Type de robot non trouvé.' });
+    }
+    await prisma.robotType.delete({ where: { name } });
+    res.json(robotType);
   }),
 );
 

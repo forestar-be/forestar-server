@@ -54,26 +54,27 @@ router.post(
       const {
         first_name,
         last_name,
-        address,
+        address,       // Optional, will default to empty string if not provided
+        postal_code,   // Optional, will default to empty string if not provided
+        city,          // Optional, will default to empty string if not provided
         phone,
-        email,
+        email,         // Optional, will default to empty string if not provided
         machine_type_name,
         repair_or_maintenance,
         robot_code,
         fault_description,
         brand_name,
+        robot_type_name,
         warranty,
         devis,
         hivernage,
-        signature, // Base64 string
+        signature,     // Base64 string
       } = req.body;
 
       const requiredFields = [
         first_name,
         last_name,
-        address,
         phone,
-        email,
         machine_type_name,
         repair_or_maintenance,
         fault_description,
@@ -84,23 +85,21 @@ router.post(
       for (const field of requiredFields) {
         if (!field || field === '') {
           logger.error('Missing required fields');
-          return res.status(400).send('Veuillez remplir tous les champs.');
+          return res.status(400).send('Veuillez remplir tous les champs obligatoires.');
         }
       }
 
-      // decode uri encoded strings
+      // Decode URI encoded strings and set optional ones to empty string if missing
       const firstNameDecoded = decodeURIComponent(first_name);
       const lastNameDecoded = decodeURIComponent(last_name);
-      const addressDecoded = decodeURIComponent(address);
+      const addressDecoded = address ? decodeURIComponent(address) : "";
+      const postalCodeDecoded = postal_code ? decodeURIComponent(postal_code) : "";
+      const cityDecoded = city ? decodeURIComponent(city) : "";
       const phoneDecoded = decodeURIComponent(phone);
-      const emailDecoded = decodeURIComponent(email);
+      const emailDecoded = email ? decodeURIComponent(email) : "";
       const machineTypeDecoded = decodeURIComponent(machine_type_name);
-      const repairOrMaintenanceDecoded = decodeURIComponent(
-        repair_or_maintenance,
-      );
-      const robotCodeDecoded = robot_code
-        ? decodeURIComponent(robot_code)
-        : null;
+      const repairOrMaintenanceDecoded = decodeURIComponent(repair_or_maintenance);
+      const robotCodeDecoded = robot_code ? decodeURIComponent(robot_code) : null;
       const faultDescriptionDecoded = decodeURIComponent(fault_description);
 
       const webpBuffer = req.file.buffer; // WebP image buffer
@@ -120,10 +119,9 @@ router.post(
         );
       }
 
-      // Convert base64 signature to a buffer and upload to Supabase
+      // Convert base64 signature to a Blob and upload to Supabase
       const signatureBuffer = base64ToBlob(signature, 'image/png');
       const signatureFileName = `signature_${generateUniqueString()}.png`;
-
       const signaturePath = `signatures/${signatureFileName}`;
       const { data: signatureUpload, error: signatureError } =
         await supabase.storage
@@ -154,6 +152,9 @@ router.post(
           image_path_list: [imagePath],
           bucket_name: bucketName,
           brand_name,
+          robot_type_name,
+          postal_code: postalCodeDecoded,
+          city: cityDecoded,
           warranty: Boolean(warranty),
           devis: Boolean(devis),
           hivernage: Boolean(hivernage),
@@ -181,13 +182,15 @@ router.post(
 router.get(
   '/optionsListByName',
   asyncHandler(async (req, res) => {
-    const [brands, machineType] = await prisma.$transaction([
+    const [brands, machineType, robotType] = await prisma.$transaction([
       prisma.brand.findMany(),
       prisma.machineType.findMany(),
+      prisma.robotType.findMany(),
     ]);
     res.json({
       brands: brands.map((brand) => brand.name),
       machineType: machineType.map((type) => type.name),
+      robotType: robotType.map((type) => type.name),
     });
   }),
 );
@@ -200,6 +203,7 @@ router.get(
     });
 
     if (!config) {
+      logger.error('Configuration not found when Formulaire Opérateur in table config');
       return res.status(404).json({ message: 'Configuration not found' });
     }
 
