@@ -116,7 +116,17 @@ export const initMaintenanceReminderCron = () => {
   cron.schedule('0 8 * * *', async () => {
     // Runs daily at 8:00 AM
     logger.info('Starting scheduled maintenance reminders');
-    await Promise.all([remindLateMaintenance(), remindFutureMaintenance()]);
+    try {
+      await remindLateMaintenance();
+    } catch (error) {
+      logger.error(`Error sending late maintenance reminder: ${error}`);
+    }
+
+    try {
+      await remindFutureMaintenance();
+    } catch (error) {
+      logger.error(`Error sending future maintenance reminder: ${error}`);
+    }
     logger.info('Completed maintenance reminders');
   });
 };
