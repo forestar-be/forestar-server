@@ -9,6 +9,11 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+model RobotType {
+  name           String          @id @unique
+  machineRepairs MachineRepair[] @relation("MachineRepairRobotType")
+}
+
 model MachineRepair {
   id                    Int                          @id @default(autoincrement())
   first_name            String
@@ -27,6 +32,7 @@ model MachineRepair {
   repairer_name         String?
   warranty              Boolean?
   brand_name            String?
+  robot_type_name       String?
   remark                String?
   devis                 Boolean                      @default(false)
   start_timer           DateTime?
@@ -37,6 +43,7 @@ model MachineRepair {
   client_call_times     DateTime[]
   hivernage             Boolean                      @default(false)
   brand_id              Brand?                       @relation("MachineRepairBrand", fields: [brand_name], references: [name])
+  robot_type_id         RobotType?                   @relation("MachineRepairRobotType", fields: [robot_type_name], references: [name])
   machine_type_id       MachineType?                 @relation("MachineRepairMachineType", fields: [machine_type_name], references: [name])
   repairer_id           Repairer?                    @relation("MachineRepairRepairer", fields: [repairer_name], references: [name])
   replaced_part_list    MachineRepairReplacedParts[]

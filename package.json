@@ -7,8 +7,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/app.js",
-    "dev": "ts-node src/app.js",
-    "debug": "nodemon -r ts-node/register --watch src --ext js,ts,json src/app.js",
+    "dev": "nodemon -r ts-node/register --watch src --ext js,ts,json src/app.js",
     "generate-prisma": "prisma generate"
   },
   "dependencies": {
