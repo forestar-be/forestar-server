@@ -54,11 +54,11 @@ router.post(
       const {
         first_name,
         last_name,
-        address,       // Optional, will default to empty string if not provided
-        postal_code,   // Optional, will default to empty string if not provided
-        city,          // Optional, will default to empty string if not provided
+        address, // Optional, will default to empty string if not provided
+        postal_code, // Optional, will default to empty string if not provided
+        city, // Optional, will default to empty string if not provided
         phone,
-        email,         // Optional, will default to empty string if not provided
+        email, // Optional, will default to empty string if not provided
         machine_type_name,
         repair_or_maintenance,
         robot_code,
@@ -68,7 +68,7 @@ router.post(
         warranty,
         devis,
         hivernage,
-        signature,     // Base64 string
+        signature, // Base64 string
       } = req.body;
 
       const requiredFields = [
@@ -85,22 +85,33 @@ router.post(
       for (const field of requiredFields) {
         if (!field || field === '') {
           logger.error('Missing required fields');
-          return res.status(400).send('Veuillez remplir tous les champs obligatoires.');
+          return res
+            .status(400)
+            .send('Veuillez remplir tous les champs obligatoires.');
         }
       }
 
       // Decode URI encoded strings and set optional ones to empty string if missing
       const firstNameDecoded = decodeURIComponent(first_name);
       const lastNameDecoded = decodeURIComponent(last_name);
-      const addressDecoded = address ? decodeURIComponent(address) : "";
-      const postalCodeDecoded = postal_code ? decodeURIComponent(postal_code) : "";
-      const cityDecoded = city ? decodeURIComponent(city) : "";
+      const addressDecoded = address ? decodeURIComponent(address) : '';
+      const postalCodeDecoded = postal_code
+        ? decodeURIComponent(postal_code)
+        : '';
+      const cityDecoded = city ? decodeURIComponent(city) : '';
       const phoneDecoded = decodeURIComponent(phone);
-      const emailDecoded = email ? decodeURIComponent(email) : "";
+      const emailDecoded = email ? decodeURIComponent(email) : '';
       const machineTypeDecoded = decodeURIComponent(machine_type_name);
-      const repairOrMaintenanceDecoded = decodeURIComponent(repair_or_maintenance);
-      const robotCodeDecoded = robot_code ? decodeURIComponent(robot_code) : null;
+      const repairOrMaintenanceDecoded = decodeURIComponent(
+        repair_or_maintenance,
+      );
+      const robotCodeDecoded = robot_code
+        ? decodeURIComponent(robot_code)
+        : null;
       const faultDescriptionDecoded = decodeURIComponent(fault_description);
+      const robotTypeNameDecoded = robot_type_name
+        ? decodeURIComponent(robot_type_name)
+        : null;
 
       const webpBuffer = req.file.buffer; // WebP image buffer
       const fileName = req.file.originalname;
@@ -152,7 +163,7 @@ router.post(
           image_path_list: [imagePath],
           bucket_name: bucketName,
           brand_name,
-          robot_type_name,
+          robot_type_name: robotTypeNameDecoded,
           postal_code: postalCodeDecoded,
           city: cityDecoded,
           warranty: Boolean(warranty),
@@ -165,8 +176,12 @@ router.post(
         .status(200)
         .json({ message: 'Données enregistrées avec succès.', newRepair });
     } catch (error) {
-      console.error(`Erreur dans /submit: ${error.message}`);
-      res.status(500).send('Erreur interne du serveur.');
+      console.error(
+        `Erreur dans /submit: ${error.message} for data: ${JSON.stringify(req.body)}`,
+      );
+      res
+        .status(500)
+        .send(`Erreur lors de l'enregistrement des données : ${error.message}`);
     }
   }),
 );
@@ -203,7 +218,9 @@ router.get(
     });
 
     if (!config) {
-      logger.error('Configuration not found when Formulaire Opérateur in table config');
+      logger.error(
+        'Configuration not found when Formulaire Opérateur in table config',
+      );
       return res.status(404).json({ message: 'Configuration not found' });
     }
 
