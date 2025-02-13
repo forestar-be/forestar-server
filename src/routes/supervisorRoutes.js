@@ -515,15 +515,21 @@ router.get(
 router.get(
   '/allConfig',
   asyncHandler(async (req, res) => {
-    const [brands, repairerNames, replacedParts, config, machineType, robotType] =
-      await prisma.$transaction([
-        prisma.brand.findMany(),
-        prisma.repairer.findMany(),
-        prisma.replacedParts.findMany(),
-        prisma.config.findMany(),
-        prisma.machineType.findMany(),
-        prisma.robotType.findMany(),
-      ]);
+    const [
+      brands,
+      repairerNames,
+      replacedParts,
+      config,
+      machineType,
+      robotType,
+    ] = await prisma.$transaction([
+      prisma.brand.findMany(),
+      prisma.repairer.findMany(),
+      prisma.replacedParts.findMany(),
+      prisma.config.findMany(),
+      prisma.machineType.findMany(),
+      prisma.robotType.findMany(),
+    ]);
     res.json({
       brands: brands.map((brand) => brand.name),
       repairerNames: repairerNames.map((repairer) => repairer.name),

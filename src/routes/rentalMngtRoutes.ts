@@ -743,4 +743,31 @@ rentalMngtRoutes.patch(
   }),
 );
 
+/**
+ * GET /known-emails
+ *
+ * Returns a JSON list containing all unique, non-empty guest emails from MachineRented.
+ */
+rentalMngtRoutes.get(
+  '/known-emails',
+  asyncHandler(async (req, res) => {
+    // Select only the guests field from all MachineRented records
+    const machineRenteds = await prisma.machineRented.findMany({
+      select: { guests: true },
+    });
+
+    // Flatten the array of guest arrays,
+    // filter out empty strings (after trimming) and deduplicate via a Set.
+    const emails = [
+      ...new Set(
+        machineRenteds.flatMap((machine) =>
+          machine.guests.filter((guest) => guest && guest.trim() !== ''),
+        ),
+      ),
+    ];
+
+    res.json(emails);
+  }),
+);
+
 export default rentalMngtRoutes;
