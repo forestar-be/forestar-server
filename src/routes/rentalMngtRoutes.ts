@@ -20,7 +20,7 @@ import {
 } from '../helper/calendar.helper';
 import multer from 'multer';
 import { generateUniqueString } from '../helper/common.helper';
-import { getImageUrl, notFoundImage } from '../helper/supabase.helper';
+import { getImagePublicUrl, notFoundImage } from '../helper/supabase.helper';
 import prisma from '../helper/prisma';
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -87,7 +87,7 @@ rentalMngtRoutes.post(
     }, {});
 
     // Fetch filtered, paginated, and sorted data
-    const machineRepairs: (MachineRentedWithNextMaintenance & {
+    const machineRentedList: (MachineRentedWithNextMaintenance & {
       imageUrl?: string;
     })[] = await prisma.machineRentedWithNextMaintenance.findMany({
       where: filterQuery,
@@ -97,10 +97,10 @@ rentalMngtRoutes.post(
     });
 
     if (withImages) {
-      for (const machine of machineRepairs) {
+      for (const machine of machineRentedList) {
         machine.imageUrl =
           machine.bucket_name && machine.image_path
-            ? await getImageUrl(
+            ? await getImagePublicUrl(
                 supabase,
                 machine.bucket_name,
                 machine.image_path,
@@ -116,7 +116,7 @@ rentalMngtRoutes.post(
 
     // Return data with pagination info
     res.json({
-      data: machineRepairs,
+      data: machineRentedList,
       pagination: {
         totalItems: totalCount,
         totalPages: take ? Math.ceil(totalCount / take) : 1,
@@ -172,7 +172,7 @@ rentalMngtRoutes.get(
       ...machineRented,
       imageUrl:
         bucket_name && image_path
-          ? await getImageUrl(supabase, bucket_name, image_path)
+          ? await getImagePublicUrl(supabase, bucket_name, image_path)
           : notFoundImage,
     });
   }),
@@ -351,7 +351,9 @@ rentalMngtRoutes.patch(
       data: { image_path: imagePath, bucket_name },
     });
 
-    res.json({ imageUrl: await getImageUrl(supabase, bucket_name, imagePath) });
+    res.json({
+      imageUrl: await getImagePublicUrl(supabase, bucket_name, imagePath),
+    });
   }),
 );
 

@@ -25,3 +25,15 @@ export async function getImageUrl(
 
   return data.signedUrl;
 }
+
+export async function getImagePublicUrl(
+  supabase: SupabaseClient,
+  bucket_name: string,
+  image_path: string,
+) {
+  const { data } = await supabase.storage
+    .from(bucket_name)
+    .getPublicUrl(image_path);
+
+  return data.publicUrl;
+}
