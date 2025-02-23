@@ -672,6 +672,7 @@ rentalMngtRoutes.put(
         price_per_day: data.price_per_day ? parseFloat(data.price_per_day) : 0,
         bucket_name,
         guests: data.guests ? data.guests.split(',') : undefined,
+        deposit: data.deposit ? parseFloat(data.deposit) : 0,
       },
     });
 
@@ -821,86 +822,6 @@ rentalMngtRoutes.get(
       orderBy: { partName: 'asc' },
     });
     res.json({ parts: parts.map((p) => p.partName) });
-  }),
-);
-
-rentalMngtRoutes.post(
-  '/machine-rented/:id/maintenance',
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const idParsed = parseInt(id);
-    const { notes } = req.body;
-    const machineRented = await prisma.machineRented.findUnique({
-      where: { id: idParsed },
-    });
-    if (!machineRented) {
-      return res.status(404).json({ message: 'Machine rented not found' });
-    }
-    const newMaintenance = await prisma.maintenanceHistory.create({
-      data: {
-        machineRentedId: idParsed,
-        notes: notes || null,
-        performedAt: new Date(),
-      },
-    });
-
-    res.json(newMaintenance);
-  }),
-);
-
-rentalMngtRoutes.get(
-  '/machine-rented/:id/maintenance',
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const idParsed = parseInt(id);
-    const machineRented = await prisma.machineRented.findUnique({
-      where: { id: idParsed },
-    });
-    if (!machineRented) {
-      return res.status(404).json({ message: 'Machine rented not found' });
-    }
-    const maintenances = await prisma.maintenanceHistory.findMany({
-      where: { machineRentedId: idParsed },
-      orderBy: { performedAt: 'desc' },
-    });
-    res.json(maintenances);
-  }),
-);
-
-rentalMngtRoutes.patch(
-  '/machine-rented/:id/maintenance/:maintenanceId',
-  asyncHandler(async (req, res) => {
-    const { maintenanceId } = req.params;
-    const maintenanceIdParsed = parseInt(maintenanceId);
-    const maintenance = await prisma.maintenanceHistory.findUnique({
-      where: { id: maintenanceIdParsed },
-    });
-    if (!maintenance) {
-      return res.status(404).json({ message: 'Maintenance record not found' });
-    }
-    const updatedMaintenance = await prisma.maintenanceHistory.update({
-      where: { id: maintenanceIdParsed },
-      data: req.body,
-    });
-    res.json(updatedMaintenance);
-  }),
-);
-
-rentalMngtRoutes.delete(
-  '/machine-rented/:id/maintenance/:maintenanceId',
-  asyncHandler(async (req, res) => {
-    const { maintenanceId } = req.params;
-    const maintenanceIdParsed = parseInt(maintenanceId);
-    const maintenance = await prisma.maintenanceHistory.findUnique({
-      where: { id: maintenanceIdParsed },
-    });
-    if (!maintenance) {
-      return res.status(404).json({ message: 'Maintenance record not found' });
-    }
-    const deleted = await prisma.maintenanceHistory.delete({
-      where: { id: maintenanceIdParsed },
-    });
-    res.json(deleted);
   }),
 );
 

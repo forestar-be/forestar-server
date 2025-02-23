@@ -17,6 +17,7 @@ SELECT
   mr.image_path,
   mr.price_per_day,
   mr.guests,
+  mr.deposit,
   CASE
     WHEN (
       (

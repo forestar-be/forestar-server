@@ -106,6 +106,7 @@ model MachineRented {
   image_path                   String?
   price_per_day                Float                @default(0)
   guests                       String[]             @default([])
+  deposit                      Float                @default(0)
   machineRentals               MachineRental[]
   parts                        MachineRentedPart[]
   maintenanceHistories         MaintenanceHistory[]
@@ -156,6 +157,7 @@ view MachineRentedWithNextMaintenance {
   image_path                   String?
   price_per_day                Float?
   guests                       String[]
+  deposit                      Float?
   next_maintenance             DateTime?        @db.Timestamp(6)
 }
 

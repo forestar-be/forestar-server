@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MachineRented" ADD COLUMN     "deposit" DOUBLE PRECISION NOT NULL DEFAULT 0;
