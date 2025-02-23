@@ -4,7 +4,14 @@ SELECT
   mr.maintenance_type,
   mr.nb_day_before_maintenance,
   mr.nb_rental_before_maintenance,
-  mr.last_maintenance_date,
+  (
+    SELECT
+      max(mh."performedAt") AS max
+    FROM
+      "MaintenanceHistory" mh
+    WHERE
+      (mh."machineRentedId" = mr.id)
+  ) AS last_maintenance_date,
   mr."eventId",
   mr.bucket_name,
   mr.image_path,
@@ -15,10 +22,26 @@ SELECT
       (
         mr.maintenance_type = 'BY_DAY' :: "MaintenanceType"
       )
-      AND (mr.last_maintenance_date IS NOT NULL)
+      AND (
+        (
+          SELECT
+            max(mh."performedAt") AS max
+          FROM
+            "MaintenanceHistory" mh
+          WHERE
+            (mh."machineRentedId" = mr.id)
+        ) IS NOT NULL
+      )
       AND (mr.nb_day_before_maintenance IS NOT NULL)
     ) THEN (
-      mr.last_maintenance_date + (
+      (
+        SELECT
+          max(mh."performedAt") AS max
+        FROM
+          "MaintenanceHistory" mh
+        WHERE
+          (mh."machineRentedId" = mr.id)
+      ) + (
         (mr.nb_day_before_maintenance) :: double precision * '1 day' :: INTERVAL
       )
     )
@@ -35,7 +58,14 @@ SELECT
             (
               ("MachineRental"."machineRentedId" = mr.id)
               AND (
-                "MachineRental"."rentalDate" > mr.last_maintenance_date
+                "MachineRental"."rentalDate" > (
+                  SELECT
+                    max(mh."performedAt") AS max
+                  FROM
+                    "MaintenanceHistory" mh
+                  WHERE
+                    (mh."machineRentedId" = mr.id)
+                )
               )
             )
         ) >= mr.nb_rental_before_maintenance

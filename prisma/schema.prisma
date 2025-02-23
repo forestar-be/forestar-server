@@ -32,7 +32,6 @@ model MachineRepair {
   repairer_name         String?
   warranty              Boolean?
   brand_name            String?
-  robot_type_name       String?
   remark                String?
   devis                 Boolean                      @default(false)
   start_timer           DateTime?
@@ -42,10 +41,11 @@ model MachineRepair {
   machine_type_name     String?
   client_call_times     DateTime[]
   hivernage             Boolean                      @default(false)
+  robot_type_name       String?
   brand_id              Brand?                       @relation("MachineRepairBrand", fields: [brand_name], references: [name])
-  robot_type_id         RobotType?                   @relation("MachineRepairRobotType", fields: [robot_type_name], references: [name])
   machine_type_id       MachineType?                 @relation("MachineRepairMachineType", fields: [machine_type_name], references: [name])
   repairer_id           Repairer?                    @relation("MachineRepairRepairer", fields: [repairer_name], references: [name])
+  robot_type_id         RobotType?                   @relation("MachineRepairRobotType", fields: [robot_type_name], references: [name])
   replaced_part_list    MachineRepairReplacedParts[]
 }
 
@@ -96,18 +96,19 @@ model MachineRepairReplacedParts {
 }
 
 model MachineRented {
-  id                           Int             @id @default(autoincrement())
+  id                           Int                  @id @default(autoincrement())
   name                         String
   maintenance_type             MaintenanceType
   nb_day_before_maintenance    Int?
   nb_rental_before_maintenance Int?
-  last_maintenance_date        DateTime?
   eventId                      String?
   bucket_name                  String?
   image_path                   String?
-  price_per_day                Float           @default(0)
-  guests                       String[]        @default([])
+  price_per_day                Float                @default(0)
+  guests                       String[]             @default([])
   machineRentals               MachineRental[]
+  parts                        MachineRentedPart[]
+  maintenanceHistories         MaintenanceHistory[]
 }
 
 model MachineRental {
@@ -128,13 +129,28 @@ model MachineRental {
   machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
+model MachineRentedPart {
+  machineRentedId Int
+  id              Int           @id @default(autoincrement())
+  partName        String
+  machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceHistory {
+  id              Int           @id @default(autoincrement())
+  machineRentedId Int
+  performedAt     DateTime      @default(now())
+  notes           String?
+  machineRented   MachineRented @relation(fields: [machineRentedId], references: [id])
+}
+
 view MachineRentedWithNextMaintenance {
   id                           Int              @unique
   name                         String?
   maintenance_type             MaintenanceType?
   nb_day_before_maintenance    Int?
   nb_rental_before_maintenance Int?
-  last_maintenance_date        DateTime?
+  last_maintenance_date        DateTime?        @db.Timestamp(6)
   eventId                      String?
   bucket_name                  String?
   image_path                   String?

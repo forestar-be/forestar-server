@@ -5,7 +5,11 @@ import {
   PrismaClient,
 } from '@prisma/client';
 import asyncHandler from '../helper/asyncHandler';
-import { MachineRented } from '.prisma/client';
+import {
+  MachineRented,
+  MachineRentedPart,
+  MaintenanceHistory,
+} from '.prisma/client';
 import { doLogin } from '../helper/auth.helper';
 import { createClient } from '@supabase/supabase-js';
 
@@ -127,7 +131,7 @@ rentalMngtRoutes.post(
   }),
 );
 
-function getMachineRentedViewWithRentals(idParsed: number) {
+function getMachineRentedViewWithAll(idParsed: number) {
   return async (prisma: {
     machineRentedWithNextMaintenance: {
       findUnique: (arg0: { where: { id: number } }) => any;
@@ -135,8 +139,20 @@ function getMachineRentedViewWithRentals(idParsed: number) {
     machineRental: {
       findMany: (arg0: { where: { machineRentedId: number } }) => any;
     };
+    machineRentedPart: {
+      findMany: (arg0: {
+        where: { machineRentedId: number };
+        select: any;
+      }) => any;
+    };
+    maintenanceHistory: {
+      findMany: (arg0: {
+        where: { machineRentedId: number };
+        orderBy: { performedAt: 'desc' };
+      }) => any;
+    };
   }) => {
-    const machineRented: MachineRentedWithNextMaintenance =
+    const machineRented: MachineRentedWithNextMaintenance | null =
       await prisma.machineRentedWithNextMaintenance.findUnique({
         where: { id: idParsed },
       });
@@ -151,32 +167,20 @@ function getMachineRentedViewWithRentals(idParsed: number) {
       },
     );
 
-    return { ...machineRented, machineRentals };
+    const parts: MachineRentedPart[] = await prisma.machineRentedPart.findMany({
+      where: { machineRentedId: idParsed },
+      select: { partName: true },
+    });
+
+    const maintenanceHistories: MaintenanceHistory[] =
+      await prisma.maintenanceHistory.findMany({
+        where: { machineRentedId: idParsed },
+        orderBy: { performedAt: 'desc' },
+      });
+
+    return { ...machineRented, machineRentals, parts, maintenanceHistories };
   };
 }
-
-rentalMngtRoutes.get(
-  '/machine-rented/:id',
-  asyncHandler(async (req, res) => {
-    logger.info(`Getting machine rented of id ${req.params.id}`);
-    const { id } = req.params;
-    const idParsed = parseInt(id);
-
-    const result = await prisma.$transaction(
-      getMachineRentedViewWithRentals(idParsed),
-    );
-
-    const { bucket_name, image_path, ...machineRented } = result;
-
-    res.json({
-      ...machineRented,
-      imageUrl:
-        bucket_name && image_path
-          ? await getImagePublicUrl(supabase, bucket_name, image_path)
-          : notFoundImage,
-    });
-  }),
-);
 
 const machineRentedNotFound = 'Machine rented not found';
 
@@ -364,9 +368,17 @@ rentalMngtRoutes.patch(
     const idParsed = parseInt(id);
     const data = req.body as Partial<MachineRented> & {
       machineRentals?: MachineRental[];
+      parts?: MachineRentedPart[];
+      maintenanceHistories?: MaintenanceHistory[];
     };
-    const { machineRentals, image_path, bucket_name, ...dataWithoutRentals } =
-      data;
+    const {
+      machineRentals,
+      image_path,
+      bucket_name,
+      parts,
+      maintenanceHistories,
+      ...dataWithoutRentals
+    } = data;
 
     try {
       const result = await prisma.$transaction(async (prisma) => {
@@ -428,8 +440,42 @@ rentalMngtRoutes.patch(
           });
         }
 
+        // Update machine parts if provided
+        if (parts !== undefined) {
+          await prisma.machineRentedPart.deleteMany({
+            where: { machineRentedId: idParsed },
+          });
+          await Promise.all(
+            parts.map((part: { partName: string }) =>
+              prisma.machineRentedPart.create({
+                data: {
+                  machineRentedId: idParsed,
+                  partName: part.partName,
+                },
+              }),
+            ),
+          );
+        }
+
+        // Update machine maintenance histories if provided
+        if (maintenanceHistories !== undefined) {
+          await prisma.maintenanceHistory.deleteMany({
+            where: { machineRentedId: idParsed },
+          });
+          await Promise.all(
+            maintenanceHistories.map((history) =>
+              prisma.maintenanceHistory.create({
+                data: {
+                  ...history,
+                  machineRentedId: idParsed,
+                },
+              }),
+            ),
+          );
+        }
+
         const updatedMachine =
-          await getMachineRentedViewWithRentals(idParsed)(prisma);
+          await getMachineRentedViewWithAll(idParsed)(prisma);
 
         if (!updatedMachine) {
           throw new Error(
@@ -616,9 +662,6 @@ rentalMngtRoutes.put(
         name: data.name,
         maintenance_type:
           data.maintenance_type === 'BY_DAY' ? 'BY_DAY' : 'BY_NB_RENTAL',
-        last_maintenance_date: data.last_maintenance_date
-          ? new Date(data.last_maintenance_date)
-          : undefined,
         nb_day_before_maintenance: data.nb_day_before_maintenance
           ? parseInt(data.nb_day_before_maintenance)
           : undefined,
@@ -632,9 +675,7 @@ rentalMngtRoutes.put(
       },
     });
 
-    const machineRented = await getMachineRentedViewWithRentals(result.id)(
-      prisma,
-    );
+    const machineRented = await getMachineRentedViewWithAll(result.id)(prisma);
 
     await updateCalendarEventMaintenance(
       machineRented,
@@ -769,6 +810,120 @@ rentalMngtRoutes.get(
     ];
 
     res.json(emails);
+  }),
+);
+
+rentalMngtRoutes.get(
+  '/machine-rented/parts',
+  asyncHandler(async (req, res) => {
+    const parts = await prisma.machineRentedPart.findMany({
+      select: { partName: true },
+      orderBy: { partName: 'asc' },
+    });
+    res.json({ parts: parts.map((p) => p.partName) });
+  }),
+);
+
+rentalMngtRoutes.post(
+  '/machine-rented/:id/maintenance',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const idParsed = parseInt(id);
+    const { notes } = req.body;
+    const machineRented = await prisma.machineRented.findUnique({
+      where: { id: idParsed },
+    });
+    if (!machineRented) {
+      return res.status(404).json({ message: 'Machine rented not found' });
+    }
+    const newMaintenance = await prisma.maintenanceHistory.create({
+      data: {
+        machineRentedId: idParsed,
+        notes: notes || null,
+        performedAt: new Date(),
+      },
+    });
+
+    res.json(newMaintenance);
+  }),
+);
+
+rentalMngtRoutes.get(
+  '/machine-rented/:id/maintenance',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const idParsed = parseInt(id);
+    const machineRented = await prisma.machineRented.findUnique({
+      where: { id: idParsed },
+    });
+    if (!machineRented) {
+      return res.status(404).json({ message: 'Machine rented not found' });
+    }
+    const maintenances = await prisma.maintenanceHistory.findMany({
+      where: { machineRentedId: idParsed },
+      orderBy: { performedAt: 'desc' },
+    });
+    res.json(maintenances);
+  }),
+);
+
+rentalMngtRoutes.patch(
+  '/machine-rented/:id/maintenance/:maintenanceId',
+  asyncHandler(async (req, res) => {
+    const { maintenanceId } = req.params;
+    const maintenanceIdParsed = parseInt(maintenanceId);
+    const maintenance = await prisma.maintenanceHistory.findUnique({
+      where: { id: maintenanceIdParsed },
+    });
+    if (!maintenance) {
+      return res.status(404).json({ message: 'Maintenance record not found' });
+    }
+    const updatedMaintenance = await prisma.maintenanceHistory.update({
+      where: { id: maintenanceIdParsed },
+      data: req.body,
+    });
+    res.json(updatedMaintenance);
+  }),
+);
+
+rentalMngtRoutes.delete(
+  '/machine-rented/:id/maintenance/:maintenanceId',
+  asyncHandler(async (req, res) => {
+    const { maintenanceId } = req.params;
+    const maintenanceIdParsed = parseInt(maintenanceId);
+    const maintenance = await prisma.maintenanceHistory.findUnique({
+      where: { id: maintenanceIdParsed },
+    });
+    if (!maintenance) {
+      return res.status(404).json({ message: 'Maintenance record not found' });
+    }
+    const deleted = await prisma.maintenanceHistory.delete({
+      where: { id: maintenanceIdParsed },
+    });
+    res.json(deleted);
+  }),
+);
+
+rentalMngtRoutes.get(
+  '/machine-rented/:id',
+  asyncHandler(async (req, res) => {
+    logger.info(`Getting machine rented of id ${req.params.id}`);
+    const { id } = req.params;
+    const idParsed = parseInt(id);
+
+    const result = await prisma.$transaction(
+      getMachineRentedViewWithAll(idParsed),
+    );
+
+    const { bucket_name, image_path, ...machineRented } = result;
+
+    res.json({
+      ...machineRented,
+      imageUrl:
+        bucket_name && image_path
+          ? await getImagePublicUrl(supabase, bucket_name, image_path)
+          : notFoundImage,
+    });
   }),
 );
 
