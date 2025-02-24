@@ -795,16 +795,16 @@ rentalMngtRoutes.patch(
 rentalMngtRoutes.get(
   '/known-emails',
   asyncHandler(async (req, res) => {
-    // Select only the guests field from all MachineRented records
-    const machineRenteds: { guests: string[] }[] =
-      await prisma.machineRented.findMany({
-        select: { guests: true },
-      });
-
-    const machineRentals: { guests: string[] }[] =
-      await prisma.machineRental.findMany({
-        select: { guests: true },
-      });
+    // Select only the guests field from all MachineRented and MachineRental records in a single transaction
+    const [machineRenteds, machineRentals]: [{ guests: string[] }[], { guests: string[] }[]] =
+      await prisma.$transaction([
+        prisma.machineRented.findMany({
+          select: { guests: true },
+        }),
+        prisma.machineRental.findMany({
+          select: { guests: true },
+        }),
+      ]);
 
     // Flatten the array of guest arrays,
     // filter out empty strings (after trimming) and deduplicate via a Set.
