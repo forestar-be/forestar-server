@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import fs from 'fs';
 import path from 'path';
 import logger from '../config/logger';
-import { MachineRentedWithNextMaintenance, Prisma } from '@prisma/client';
+import { MachineRentedView, Prisma } from '@prisma/client';
 import prisma from './prisma';
 import { sendEmail } from './mailer';
 
@@ -32,7 +32,7 @@ const readHtmlTemplate = (templateName: string): string => {
 };
 
 const generateEmailContent = (
-  machine: MachineRentedWithNextMaintenance,
+  machine: MachineRentedView,
   templateName: string,
 ) => {
   const nextMaintenanceDate =
@@ -64,13 +64,13 @@ const generateEmailContent = (
 
 // Unified reminder function
 const sendMaintenanceReminders = async (
-  whereCondition: Prisma.MachineRentedWithNextMaintenanceWhereInput,
+  whereCondition: Prisma.MachineRentedViewWhereInput,
   templateName: string,
   context: string,
 ) => {
   logger.info(`Checking for ${context} maintenance reminders`);
 
-  const machines = await prisma.machineRentedWithNextMaintenance.findMany({
+  const machines = await prisma.machineRentedView.findMany({
     where: whereCondition,
   });
 

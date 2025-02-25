@@ -107,7 +107,6 @@ model MachineRented {
   price_per_day                Float                @default(0)
   guests                       String[]             @default([])
   deposit                      Float                @default(0)
-  with_shipping                Boolean              @default(false)
   machineRentals               MachineRental[]
   parts                        MachineRentedPart[]
   maintenanceHistories         MaintenanceHistory[]
@@ -128,6 +127,7 @@ model MachineRental {
   paid            Boolean       @default(false)
   guests          String[]      @default([])
   eventId         String
+  with_shipping   Boolean       @default(false)
   machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
@@ -153,7 +153,7 @@ model ConfigRentalManagement {
   createdAt DateTime @default(now())
 }
 
-view MachineRentedWithNextMaintenance {
+view MachineRentedView {
   id                           Int              @unique
   name                         String?
   maintenance_type             MaintenanceType?
@@ -166,8 +166,25 @@ view MachineRentedWithNextMaintenance {
   price_per_day                Float?
   guests                       String[]
   deposit                      Float?
-  with_shipping                Boolean?
   next_maintenance             DateTime?        @db.Timestamp(6)
+}
+
+view MachineRentalView {
+  id              Int       @unique
+  machineRentedId Int
+  rentalDate      DateTime
+  returnDate      DateTime?
+  clientAddress   String
+  clientCity      String
+  clientEmail     String
+  clientFirstName String
+  clientLastName  String
+  clientPhone     String
+  clientPostal    String
+  paid            Boolean
+  guests          String[]
+  eventId         String
+  with_shipping   Boolean
 }
 
 enum Role {
