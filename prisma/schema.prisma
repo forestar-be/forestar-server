@@ -107,6 +107,7 @@ model MachineRented {
   price_per_day                Float                @default(0)
   guests                       String[]             @default([])
   deposit                      Float                @default(0)
+  with_shipping                Boolean              @default(false)
   machineRentals               MachineRental[]
   parts                        MachineRentedPart[]
   maintenanceHistories         MaintenanceHistory[]
@@ -145,6 +146,13 @@ model MaintenanceHistory {
   machineRented   MachineRented @relation(fields: [machineRentedId], references: [id])
 }
 
+model ConfigRentalManagement {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+}
+
 view MachineRentedWithNextMaintenance {
   id                           Int              @unique
   name                         String?
@@ -158,6 +166,7 @@ view MachineRentedWithNextMaintenance {
   price_per_day                Float?
   guests                       String[]
   deposit                      Float?
+  with_shipping                Boolean?
   next_maintenance             DateTime?        @db.Timestamp(6)
 }
 

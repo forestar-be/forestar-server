@@ -796,15 +796,17 @@ rentalMngtRoutes.get(
   '/known-emails',
   asyncHandler(async (req, res) => {
     // Select only the guests field from all MachineRented and MachineRental records in a single transaction
-    const [machineRenteds, machineRentals]: [{ guests: string[] }[], { guests: string[] }[]] =
-      await prisma.$transaction([
-        prisma.machineRented.findMany({
-          select: { guests: true },
-        }),
-        prisma.machineRental.findMany({
-          select: { guests: true },
-        }),
-      ]);
+    const [machineRenteds, machineRentals]: [
+      { guests: string[] }[],
+      { guests: string[] }[],
+    ] = await prisma.$transaction([
+      prisma.machineRentedWithNextMaintenance.findMany({
+        select: { guests: true },
+      }),
+      prisma.machineRental.findMany({
+        select: { guests: true },
+      }),
+    ]);
 
     // Flatten the array of guest arrays,
     // filter out empty strings (after trimming) and deduplicate via a Set.
@@ -851,6 +853,73 @@ rentalMngtRoutes.get(
           ? await getImagePublicUrl(supabase, bucket_name, image_path)
           : notFoundImage,
     });
+  }),
+);
+
+rentalMngtRoutes.get(
+  '/config',
+  asyncHandler(async (req, res) => {
+    const config = await prisma.configRentalManagement.findMany();
+    res.json(config);
+  }),
+);
+
+rentalMngtRoutes.put(
+  '/config',
+  asyncHandler(async (req, res) => {
+    const config = req.body;
+    if (
+      !config ||
+      typeof config !== 'object' ||
+      typeof config['key'] !== 'string' ||
+      typeof config['value'] !== 'string'
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'Veuillez fournir une configuration valide.' });
+    }
+
+    // update config
+    const result = await prisma.configRentalManagement.createMany({
+      data: [config],
+      skipDuplicates: true,
+    });
+
+    res.json(result);
+  }),
+);
+
+rentalMngtRoutes.delete(
+  '/config/:key',
+  asyncHandler(async (req, res) => {
+    const { key } = req.params;
+    const config = await prisma.configRentalManagement.findUnique({
+      where: { key },
+    });
+    if (!config) {
+      return res.status(404).json({ message: 'Configuration non trouvée.' });
+    }
+    await prisma.configRentalManagement.delete({ where: { key } });
+    res.json(config);
+  }),
+);
+
+rentalMngtRoutes.patch(
+  '/config/:key',
+  asyncHandler(async (req, res) => {
+    const { key } = req.params;
+    const { value } = req.body;
+    const config = await prisma.configRentalManagement.findUnique({
+      where: { key },
+    });
+    if (!config) {
+      return res.status(404).json({ message: 'Configuration non trouvée.' });
+    }
+    const updatedConfig = await prisma.configRentalManagement.update({
+      where: { key },
+      data: { value },
+    });
+    res.json(updatedConfig);
   }),
 );
 

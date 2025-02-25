@@ -16,8 +16,39 @@ SELECT
   mr.bucket_name,
   mr.image_path,
   mr.price_per_day,
-  mr.guests,
+  CASE
+    WHEN (
+      (mr.with_shipping = TRUE)
+      AND (
+        EXISTS (
+          SELECT
+            1
+          FROM
+            "ConfigRentalManagement" crm
+          WHERE
+            (
+              (crm.key = 'Email du livreur' :: text)
+              AND (crm.value <> '' :: text)
+            )
+        )
+      )
+    ) THEN array_append(
+      mr.guests,
+      (
+        SELECT
+          crm.value
+        FROM
+          "ConfigRentalManagement" crm
+        WHERE
+          (crm.key = 'Email du livreur' :: text)
+        LIMIT
+          1
+      )
+    )
+    ELSE mr.guests
+  END AS guests,
   mr.deposit,
+  mr.with_shipping,
   CASE
     WHEN (
       (
