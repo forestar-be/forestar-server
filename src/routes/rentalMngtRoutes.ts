@@ -31,7 +31,7 @@ import {
   updateCalendarEventMaintenance,
 } from '../helper/agenda.helper';
 import { sendRentalNotificationEmail } from '../helper/rentalEmail.helper';
-import { MachineRentedView } from '@prisma/client';
+import { MachineRental, MachineRentedView } from '@prisma/client';
 const rentalMngtRoutes = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -331,8 +331,10 @@ rentalMngtRoutes.put(
           throw new Error('Machine rented details not found');
         }
 
-        // Use the email helper to send the rental notification
-        await sendRentalNotificationEmail(rental);
+        if (rental.guests.length > 0) {
+          // Use the email helper to send the rental notification
+          await sendRentalNotificationEmail(rental);
+        }
 
         const eventId = await createEvent(
           {
@@ -406,8 +408,13 @@ rentalMngtRoutes.patch(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body;
+    const data: Partial<MachineRental> = req.body;
     const updatedRental = await prisma.$transaction(async (prisma) => {
+      const existingRental = await prisma.machineRental.findUnique({
+        where: { id: idParsed },
+      });
+      if (!existingRental) throw new Error('Rental not found');
+
       if (data.guests) {
         data.guests = data.guests.filter(
           (guest: string, index: number, self: string[]) =>
@@ -440,6 +447,16 @@ rentalMngtRoutes.patch(
           updatedRental.guests,
         );
       }
+
+      // check if new guests are added by comparing the new guests with the old guests
+      // send notification only to the new guests
+      const newGuests = updatedRental.guests.filter(
+        (guest: string) => !existingRental.guests.includes(guest),
+      );
+      if (newGuests.length > 0) {
+        await sendRentalNotificationEmail(updatedRental);
+      }
+
       return updatedRental;
     });
     res.json(updatedRental);
