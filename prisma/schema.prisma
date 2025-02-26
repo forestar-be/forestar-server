@@ -128,6 +128,7 @@ model MachineRental {
   guests          String[]      @default([])
   eventId         String
   with_shipping   Boolean       @default(false)
+  depositToPay    Boolean       @default(false)
   machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
@@ -185,6 +186,7 @@ view MachineRentalView {
   guests          String[]
   eventId         String
   with_shipping   Boolean
+  depositToPay    Boolean?
 }
 
 enum Role {
@@ -198,6 +200,3 @@ enum MaintenanceType {
   BY_DAY
   BY_NB_RENTAL
 }
-
-// command to add migration:
-// npx prisma migrate dev --name xxxxxxxx

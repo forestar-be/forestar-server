@@ -28,25 +28,30 @@ SELECT
         )
       )
     ) THEN ARRAY(
-      SELECT DISTINCT UNNEST(
-        array_append(
-          mr.guests,
-          (
-            SELECT
-              crm.value
-            FROM
-              "ConfigRentalManagement" crm
-            WHERE
-              (crm.key = 'Email du livreur' :: text)
-            LIMIT
-              1
+      SELECT
+        DISTINCT unnest(
+          array_append(
+            mr.guests,
+            (
+              SELECT
+                crm.value
+              FROM
+                "ConfigRentalManagement" crm
+              WHERE
+                (crm.key = 'Email du livreur' :: text)
+              LIMIT
+                1
+            )
           )
-        )
-      )
+        ) AS unnest
     )
-    ELSE ARRAY(SELECT DISTINCT UNNEST(mr.guests))
+    ELSE ARRAY(
+      SELECT
+        DISTINCT unnest(mr.guests) AS unnest
+    )
   END AS guests,
   mr."eventId",
-  mr.with_shipping
+  mr.with_shipping,
+  mr."depositToPay"
 FROM
   "MachineRental" mr;

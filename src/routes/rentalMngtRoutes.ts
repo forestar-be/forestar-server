@@ -1,48 +1,47 @@
+// routes/rentalMngtRoutes.ts
 import express from 'express';
-import { MachineRental, MachineRentedView, PrismaClient } from '@prisma/client';
 import asyncHandler from '../helper/asyncHandler';
-import {
-  MachineRentalView,
-  MachineRented,
-  MachineRentedPart,
-  MaintenanceHistory,
-} from '.prisma/client';
 import { doLogin } from '../helper/auth.helper';
 import { createClient } from '@supabase/supabase-js';
-
-const rentalMngtRoutes = express.Router();
+import multer from 'multer';
 import logger from '../config/logger';
+import prisma from '../helper/prisma';
+import path from 'path';
+
 import {
-  calendarEntretienId,
+  generateUniqueString,
+  formatPriceNumberToFrenchFormatStr,
+} from '../helper/common.helper';
+import { getImagePublicUrl, notFoundImage } from '../helper/supabase.helper';
+import {
   calendarRentalId,
   createEvent,
   deleteEvent,
   updateEvent,
-} from '../helper/calendar.helper';
-import multer from 'multer';
-import { generateUniqueString } from '../helper/common.helper';
-import { getImagePublicUrl, notFoundImage } from '../helper/supabase.helper';
-import prisma from '../helper/prisma';
+} from '../helper/rentalCalendar.helper';
+
+import {
+  getMachineRentedView,
+  machineRentedNotFound,
+} from '../helper/machineRented.helper';
+import { getMachineRentalView } from '../helper/machineRental.helper';
+import {
+  getRentalPrice,
+  getEventRentalDescription,
+  updateCalendarEventMaintenance,
+} from '../helper/agenda.helper';
+import { sendRentalNotificationEmail } from '../helper/rentalEmail.helper';
+import { MachineRentedView } from '@prisma/client';
+const rentalMngtRoutes = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
 const BUCKET_NAME = process.env.BUCKET_IMAGE_MACHINES;
-
-if (!RENTAL_MANAGER_SECRET_KEY) {
+if (!RENTAL_MANAGER_SECRET_KEY)
   throw new Error('RENTAL_MANAGER_SECRET_KEY is not set');
-}
-
-if (!BUCKET_NAME) {
-  throw new Error('BUCKET_IMAGE_MACHINES is not set');
-}
-
-if (!process.env.SUPABASE_URL) {
-  throw new Error('SUPABASE_URL is not set');
-}
-
-if (!process.env.SUPABASE_KEY) {
-  throw new Error('SUPABASE_KEY is not set');
-}
+if (!BUCKET_NAME) throw new Error('BUCKET_IMAGE_MACHINES is not set');
+if (!process.env.SUPABASE_URL) throw new Error('SUPABASE_URL is not set');
+if (!process.env.SUPABASE_KEY) throw new Error('SUPABASE_KEY is not set');
 
 // Initialize Supabase
 const supabase = createClient(
@@ -50,52 +49,43 @@ const supabase = createClient(
   process.env.SUPABASE_KEY,
 );
 
+// ----------------------
+// MACHINE RENTED ENDPOINTS
+// ----------------------
+
 rentalMngtRoutes.post(
   '/machine-rented',
   asyncHandler(async (req, res) => {
-    // Extract query parameters
     const {
-      sortBy = 'next_maintenance', // default sorting by next_maintenance
-      sortOrder = 'desc', // default sorting order is descending
+      sortBy = 'next_maintenance',
+      sortOrder = 'desc',
       page,
       itemsPerPage,
     } = req.query;
-
-    if (typeof sortBy !== 'string') {
-      throw new Error('Invalid sortBy parameter');
-    }
-
-    if (page && typeof page !== 'string') {
+    if (typeof sortBy !== 'string') throw new Error('Invalid sortBy parameter');
+    if (page && typeof page !== 'string')
       throw new Error('Invalid page parameter');
-    }
-
-    if (itemsPerPage && typeof itemsPerPage !== 'string') {
+    if (itemsPerPage && typeof itemsPerPage !== 'string')
       throw new Error('Invalid itemsPerPage parameter');
-    }
 
-    // Extract filter from request body
     const { filter = {}, withImages = false } = req.body;
-
-    // Set up pagination
     const skip =
       page && itemsPerPage
         ? (parseInt(page) - 1) * parseInt(itemsPerPage)
         : null;
     const take = itemsPerPage ? parseInt(itemsPerPage) : null;
+    const filterQuery = Object.keys(filter).reduce(
+      (acc, key) => ({ ...acc, [key]: { contains: filter[key] } }),
+      {},
+    );
 
-    const filterQuery = Object.keys(filter).reduce((acc, key) => {
-      return { ...acc, [key]: { contains: filter[key] } };
-    }, {});
-
-    // Fetch filtered, paginated, and sorted data
-    const machineRentedList: (MachineRentedView & {
-      imageUrl?: string;
-    })[] = await prisma.machineRentedView.findMany({
-      where: filterQuery,
-      orderBy: { [sortBy]: sortOrder }, // Apply sorting
-      ...(skip && { skip }), // Apply pagination
-      ...(take && { take }), // Apply pagination
-    });
+    const machineRentedList: (MachineRentedView & { imageUrl?: string })[] =
+      await prisma.machineRentedView.findMany({
+        where: filterQuery,
+        orderBy: { [sortBy]: sortOrder },
+        ...(skip && { skip }),
+        ...(take && { take }),
+      });
 
     if (withImages) {
       for (const machine of machineRentedList) {
@@ -110,12 +100,7 @@ rentalMngtRoutes.post(
       }
     }
 
-    // Get total count for pagination metadata
-    const totalCount = await prisma.machineRepair.count({
-      where: filter,
-    });
-
-    // Return data with pagination info
+    const totalCount = await prisma.machineRepair.count({ where: filter });
     res.json({
       data: machineRentedList,
       pagination: {
@@ -128,275 +113,44 @@ rentalMngtRoutes.post(
   }),
 );
 
-function getMachineRentedView(
-  idParsed: number,
-  includeRentals: boolean = true,
-  includeParts: boolean = true,
-  includeMaintenanceHistories: boolean = true,
-) {
-  return async (prisma: {
-    machineRentedView: {
-      findUnique: (arg0: { where: { id: number } }) => any;
-    };
-    machineRental: {
-      findMany: (arg0: { where: { machineRentedId: number } }) => any;
-    };
-    machineRentedPart: {
-      findMany: (arg0: {
-        where: { machineRentedId: number };
-        select: any;
-      }) => any;
-    };
-    maintenanceHistory: {
-      findMany: (arg0: {
-        where: { machineRentedId: number };
-        orderBy: { performedAt: 'desc' };
-      }) => any;
-    };
-  }) => {
-    const machineRented: MachineRentedView | null =
-      await prisma.machineRentedView.findUnique({
-        where: { id: idParsed },
-      });
-
-    if (!machineRented) {
-      throw new Error('Machine rented not found');
-    }
-
-    let machineRentals: MachineRental[] = [];
-    let parts: MachineRentedPart[] = [];
-    let maintenanceHistories: MaintenanceHistory[] = [];
-
-    if (includeRentals) {
-      machineRentals = await prisma.machineRental.findMany({
-        where: { machineRentedId: idParsed },
-      });
-    }
-
-    if (includeParts) {
-      parts = await prisma.machineRentedPart.findMany({
-        where: { machineRentedId: idParsed },
-        select: { partName: true },
-      });
-    }
-
-    if (includeMaintenanceHistories) {
-      maintenanceHistories = await prisma.maintenanceHistory.findMany({
-        where: { machineRentedId: idParsed },
-        orderBy: { performedAt: 'desc' },
-      });
-    }
-
-    return { ...machineRented, machineRentals, parts, maintenanceHistories };
-  };
-}
-
-function getMachineRentalView(
-  idParsed: number,
-  includeMachineRented: boolean = true,
-) {
-  return async (prisma: {
-    machineRentalView: {
-      findUnique: (arg0: { where: { id: number } }) => any;
-    };
-    machineRentedView: {
-      findUnique: (arg0: { where: { id: number } }) => any;
-    };
-  }) => {
-    const machineRental: MachineRentalView | null =
-      await prisma.machineRentalView.findUnique({
-        where: { id: idParsed },
-      });
-
-    if (!machineRental) {
-      throw new Error('Machine rental not found');
-    }
-
-    let machineRented: MachineRentedView | null = null;
-
-    if (includeMachineRented) {
-      machineRented = await prisma.machineRentedView.findUnique({
-        where: { id: machineRental.machineRentedId },
-      });
-    }
-
-    return { ...machineRental, machineRented };
-  };
-}
-
-const machineRentedNotFound = 'Machine rented not found';
-
-const getEventMaintenanceUpdateAction = (
-  currentMachine: MachineRentedView,
-  updatedMachine: MachineRentedView,
-  dbUpdateType: 'update' | 'create' | 'delete',
-): 'update' | 'create' | 'delete' | 'none' => {
-  if (dbUpdateType === 'create') {
-    return updatedMachine.next_maintenance ? 'create' : 'none';
-  }
-
-  if (dbUpdateType === 'delete') {
-    return currentMachine.eventId ? 'delete' : 'none';
-  }
-
-  if (dbUpdateType === 'update') {
-    // if next_maintenance not updated, and same name, none
-    if (
-      currentMachine.name === updatedMachine.name &&
-      currentMachine.next_maintenance?.getTime() ===
-        updatedMachine.next_maintenance?.getTime()
-    ) {
-      return 'none';
-    }
-
-    // if the only change is the last maintenance date, and if the new date is in the future from the previous date, then we should create new event for next maintenance
-    if (
-      currentMachine.name === updatedMachine.name &&
-      currentMachine.maintenance_type === updatedMachine.maintenance_type &&
-      ((updatedMachine.maintenance_type === 'BY_DAY' &&
-        updatedMachine.nb_day_before_maintenance ===
-          currentMachine.nb_day_before_maintenance) ||
-        (updatedMachine.maintenance_type === 'BY_NB_RENTAL' &&
-          updatedMachine.nb_rental_before_maintenance ===
-            currentMachine.nb_rental_before_maintenance)) &&
-      currentMachine.last_maintenance_date !==
-        updatedMachine.last_maintenance_date &&
-      currentMachine.last_maintenance_date &&
-      updatedMachine.last_maintenance_date &&
-      new Date(updatedMachine.last_maintenance_date).getTime() >
-        new Date(currentMachine.last_maintenance_date).getTime()
-    ) {
-      return 'create';
-    }
-
-    if (updatedMachine.next_maintenance) {
-      return currentMachine.next_maintenance && updatedMachine.eventId
-        ? 'update'
-        : 'create';
-    }
-
-    return currentMachine.next_maintenance ? 'delete' : 'update';
-  }
-
-  throw new Error('Unexpected dbUpdateType');
-};
-
-async function updateCalendarEventMaintenance(
-  existingMachine: MachineRentedView,
-  updatedMachine: MachineRentedView,
-  prisma: any,
-  idParsed: number,
-  dbUpdateType: 'update' | 'create' | 'delete' = 'update',
-) {
-  const eventUpdateType = getEventMaintenanceUpdateAction(
-    existingMachine,
-    updatedMachine,
-    dbUpdateType,
-  );
-
-  // Calendar Event Handling
-  switch (eventUpdateType) {
-    case 'update':
-    case 'create':
-      const eventData = {
-        summary: `Maintenance ${updatedMachine.name}`,
-        description: `Maintenance pour la machine ${updatedMachine.name}`,
-        start: updatedMachine.next_maintenance!,
-        end: updatedMachine.next_maintenance!,
-      };
-      if (eventUpdateType === 'update') {
-        logger.info(
-          `Updating event ${existingMachine.eventId} for machine ${idParsed} with data: ${JSON.stringify(eventData)}`,
-        );
-        await updateEvent(
-          existingMachine.eventId!,
-          eventData,
-          calendarEntretienId,
-        );
-      } else {
-        logger.info(`Creating event for machine ${idParsed}`);
-        const eventId = await createEvent(eventData, calendarEntretienId);
-        logger.info(`Event created with id ${eventId}`);
-        await prisma.machineRented.update({
-          where: { id: idParsed },
-          data: { eventId },
-        });
-      }
-      break;
-    case 'delete':
-      logger.info(
-        `Deleting event ${existingMachine.eventId} of machine ${idParsed}`,
-      );
-      await deleteEvent(existingMachine.eventId!, calendarEntretienId);
-      await prisma.machineRented.update({
-        where: { id: idParsed },
-        data: { eventId: null },
-      });
-      break;
-    case 'none':
-      logger.info(`No event update needed for machine ${idParsed}`);
-      break;
-    default:
-      break;
-  }
-
-  return eventUpdateType;
-}
-
 rentalMngtRoutes.patch(
   '/machine-rented/:id/image',
   upload.single('image'),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
     const { id } = req.params;
     const machineRented = await prisma.machineRented.findUnique({
       where: { id: parseInt(id) },
       select: { bucket_name: true, image_path: true },
     });
-
-    if (!machineRented) {
+    if (!machineRented)
       return res.status(404).json({ message: 'Machine rented not found' });
-    }
-
-    const { bucket_name: _bucket_name, image_path } = machineRented;
-
-    const bucket_name: string = _bucket_name || BUCKET_NAME;
-
-    if (image_path) {
-      // try to delete
+    const bucket_name: string = machineRented.bucket_name || BUCKET_NAME;
+    if (machineRented.image_path) {
       const { error: deleteError } = await supabase.storage
         .from(bucket_name)
-        .remove([image_path]);
-      if (deleteError) {
+        .remove([machineRented.image_path]);
+      if (deleteError)
         throw new Error(
           `Erreur lors de la suppression de l'image : ${deleteError.message}`,
         );
-      }
     }
-
-    const webpBuffer = req.file.buffer; // WebP image buffer
     const fileName = req.file.originalname;
     const imagePath = `images/${generateUniqueString()}_${fileName}`;
-
-    const { data: imageUpload, error: imageError } = await supabase.storage
+    const webpBuffer = req.file.buffer;
+    const { error: imageError } = await supabase.storage
       .from(bucket_name)
       .upload(imagePath, webpBuffer, {
         contentType: 'image/webp',
       });
-
-    if (imageError) {
+    if (imageError)
       throw new Error(
         `Erreur lors du téléchargement de l'image : ${imageError.message}`,
       );
-    }
-    const result = await prisma.machineRented.update({
+    await prisma.machineRented.update({
       where: { id: parseInt(id) },
       data: { image_path: imagePath, bucket_name },
     });
-
     res.json({
       imageUrl: await getImagePublicUrl(supabase, bucket_name, imagePath),
     });
@@ -408,72 +162,57 @@ rentalMngtRoutes.patch(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body as Partial<MachineRented> & {
-      machineRentals?: MachineRental[];
-      parts?: MachineRentedPart[];
-      maintenanceHistories?: MaintenanceHistory[];
-    };
+    const data = req.body;
     const {
       machineRentals,
-      image_path,
-      bucket_name,
       parts,
       maintenanceHistories,
       ...dataWithoutRentals
     } = data;
 
-    // if guests in dataWithoutRentals, clean list to remove empty strings and duplicates
     if (dataWithoutRentals?.guests) {
-      dataWithoutRentals.guests = dataWithoutRentals.guests
-        .filter((guest) => !!guest)
-        .filter((guest, index, self) => self.indexOf(guest) === index);
+      dataWithoutRentals.guests = dataWithoutRentals.guests.filter(
+        (guest: string, index: number, self: string[]) =>
+          guest && self.indexOf(guest) === index,
+      );
     }
 
     try {
       const result = await prisma.$transaction(async (prisma) => {
-        // Fetch the existing machine
         const existingMachine = await prisma.machineRentedView.findUnique({
           where: { id: idParsed },
         });
-
-        if (!existingMachine) {
-          throw new Error(machineRentedNotFound);
-        }
+        if (!existingMachine) throw new Error(machineRentedNotFound);
 
         if (machineRentals) {
-          // update each rental, if not exists, create, if not in data, delete
           const existingRentals = await prisma.machineRental.findMany({
             where: { machineRentedId: idParsed },
           });
-
           const existingRentalsIds = existingRentals.map((r) => r.id);
-          const dataRentalsIds = machineRentals.map((r) => r.id);
-
+          const dataRentalsIds = machineRentals.map((r: any) => r.id);
           const toDelete = existingRentalsIds.filter(
-            (id) => !dataRentalsIds.includes(id),
+            (id: number) => !dataRentalsIds.includes(id),
           );
-          const toUpdate = existingRentalsIds.filter((id) =>
+          const toUpdate = existingRentalsIds.filter((id: number) =>
             dataRentalsIds.includes(id),
           );
           const toCreate = machineRentals.filter(
-            (r) => !r.id || (r.id && !existingRentalsIds.includes(r.id)),
+            (r: any) => !r.id || (r.id && !existingRentalsIds.includes(r.id)),
           );
 
           await prisma.machineRental.deleteMany({
             where: { id: { in: toDelete } },
           });
-
           await Promise.all(
-            toUpdate.map((id) =>
+            toUpdate.map((id: number) =>
               prisma.machineRental.update({
                 where: { id },
-                data: machineRentals.find((r) => r.id === id)!,
+                data: machineRentals.find((r: any) => r.id === id)!,
               }),
             ),
           );
-
           await Promise.all(
-            toCreate.map((r) =>
+            toCreate.map((r: any) =>
               prisma.machineRental.create({
                 data: { ...r, machineRentedId: idParsed },
               }),
@@ -488,7 +227,6 @@ rentalMngtRoutes.patch(
           });
         }
 
-        // Update machine parts if provided
         if (parts !== undefined) {
           await prisma.machineRentedPart.deleteMany({
             where: { machineRentedId: idParsed },
@@ -496,39 +234,30 @@ rentalMngtRoutes.patch(
           await Promise.all(
             parts.map((part: { partName: string }) =>
               prisma.machineRentedPart.create({
-                data: {
-                  machineRentedId: idParsed,
-                  partName: part.partName,
-                },
+                data: { machineRentedId: idParsed, partName: part.partName },
               }),
             ),
           );
         }
 
-        // Update machine maintenance histories if provided
         if (maintenanceHistories !== undefined) {
           await prisma.maintenanceHistory.deleteMany({
             where: { machineRentedId: idParsed },
           });
           await Promise.all(
-            maintenanceHistories.map((history) =>
+            maintenanceHistories.map((history: any) =>
               prisma.maintenanceHistory.create({
-                data: {
-                  ...history,
-                  machineRentedId: idParsed,
-                },
+                data: { ...history, machineRentedId: idParsed },
               }),
             ),
           );
         }
 
         const updatedMachine = await getMachineRentedView(idParsed)(prisma);
-
-        if (!updatedMachine) {
+        if (!updatedMachine)
           throw new Error(
             `Unexpected error: Machine rented with id ${idParsed} not found after update`,
           );
-        }
 
         const eventUpdateType = await updateCalendarEventMaintenance(
           existingMachine,
@@ -536,7 +265,6 @@ rentalMngtRoutes.patch(
           prisma,
           idParsed,
         );
-
         return { ...updatedMachine, eventUpdateType };
       });
 
@@ -555,18 +283,12 @@ rentalMngtRoutes.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-
     const result = await prisma
       .$transaction(async (prisma) => {
-        // check if exists
         const machineRented = await prisma.machineRentedView.findUnique({
           where: { id: idParsed },
         });
-
-        if (!machineRented) {
-          throw new Error(machineRentedNotFound);
-        }
-
+        if (!machineRented) throw new Error(machineRentedNotFound);
         await updateCalendarEventMaintenance(
           machineRented,
           machineRented,
@@ -574,10 +296,7 @@ rentalMngtRoutes.delete(
           idParsed,
           'delete',
         );
-
-        return prisma.machineRented.delete({
-          where: { id: idParsed },
-        });
+        return prisma.machineRented.delete({ where: { id: idParsed } });
       })
       .catch((error) => {
         if (error.message === machineRentedNotFound) {
@@ -585,53 +304,58 @@ rentalMngtRoutes.delete(
         }
         throw error;
       });
-
     res.json(result);
   }),
 );
+
+// ----------------------
+// MACHINE RENTAL ENDPOINTS
+// ----------------------
 
 rentalMngtRoutes.put(
   '/machine-rented/:id/rental',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body as MachineRental;
-
+    const data = req.body;
     const result = await prisma
       .$transaction(async (prisma) => {
-        // check if exists
-        const machineRented = await prisma.machineRented.findUnique({
-          where: { id: idParsed },
+        const rentalCreated = await prisma.machineRental.create({
+          data: { ...data, eventId: 'null', machineRentedId: idParsed },
         });
-
-        if (!machineRented) {
-          throw new Error(machineRentedNotFound);
+        const rental = await getMachineRentalView(
+          rentalCreated.id,
+          true,
+        )(prisma);
+        if (!rental.machineRented) {
+          throw new Error('Machine rented details not found');
         }
+
+        // Use the email helper to send the rental notification
+        await sendRentalNotificationEmail(rental);
 
         const eventId = await createEvent(
           {
-            summary: `Location ${machineRented.name}`,
-            start: new Date(data.rentalDate),
-            end: data.returnDate
-              ? new Date(data.returnDate)
-              : new Date(data.rentalDate),
-            description: `Location de la machine ${machineRented.name} par ${data.clientFirstName} ${data.clientLastName} (${data.clientEmail} - ${data.clientPhone}) situé au ${data.clientAddress}, ${data.clientPostal} ${data.clientCity}`,
+            summary: `Location ${rental.machineRented.name}`,
+            start: new Date(rental.rentalDate),
+            end: rental.returnDate
+              ? new Date(rental.returnDate)
+              : new Date(rental.rentalDate),
+            description: getEventRentalDescription(
+              rental,
+              rental.machineRented,
+            ),
           },
           calendarRentalId,
-          data.guests,
+          rental.guests,
         );
+        if (!eventId) throw new Error('Event creation failed');
 
-        if (!eventId) {
-          throw new Error('Event creation failed');
-        }
-
-        return prisma.machineRental.create({
-          data: {
-            ...data,
-            eventId,
-            machineRentedId: idParsed,
-          },
+        await prisma.machineRental.update({
+          where: { id: rental.id },
+          data: { eventId },
         });
+        return { ...rental, eventId };
       })
       .catch((error) => {
         if (error.message === machineRentedNotFound) {
@@ -639,100 +363,7 @@ rentalMngtRoutes.put(
         }
         throw error;
       });
-
     res.json(result);
-  }),
-);
-
-rentalMngtRoutes.post(
-  '/login',
-  asyncHandler(async (req, res) => {
-    const role = 'RENTAL_MANAGER';
-    const key = RENTAL_MANAGER_SECRET_KEY!;
-    return await doLogin(req, res, role, key, prisma);
-  }),
-);
-
-rentalMngtRoutes.put(
-  '/machine-rented',
-  upload.single('image'),
-  asyncHandler(async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
-    const data = req.body as { [K in keyof MachineRented]: string };
-
-    const bucket_name = BUCKET_NAME;
-    const fileName = req.file.originalname;
-    const imagePath = `images/${generateUniqueString()}_${fileName}`;
-    const webpBuffer = req.file.buffer; // WebP image buffer
-
-    const { data: imageUpload, error: imageError } = await supabase.storage
-      .from(bucket_name)
-      .upload(imagePath, webpBuffer, {
-        contentType: 'image/webp',
-      });
-
-    if (imageError) {
-      throw new Error(
-        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
-      );
-    }
-
-    if (data.maintenance_type === 'BY_NB_RENTAL') {
-      if (!data.nb_rental_before_maintenance) {
-        throw new Error('nb_rental_before_maintenance is required');
-      }
-    }
-
-    if (data.maintenance_type === 'BY_DAY') {
-      if (!data.nb_day_before_maintenance) {
-        throw new Error('nb_day_before_maintenance is required');
-      }
-    }
-
-    if (
-      data.maintenance_type !== 'BY_DAY' &&
-      data.maintenance_type !== 'BY_NB_RENTAL'
-    ) {
-      throw new Error('maintenance_type must be BY_DAY or BY_NB_RENTAL');
-    }
-
-    if (!data.price_per_day) {
-      throw new Error('price_per_day is required');
-    }
-
-    const result = await prisma.machineRented.create({
-      data: {
-        name: data.name,
-        maintenance_type:
-          data.maintenance_type === 'BY_DAY' ? 'BY_DAY' : 'BY_NB_RENTAL',
-        nb_day_before_maintenance: data.nb_day_before_maintenance
-          ? parseInt(data.nb_day_before_maintenance)
-          : undefined,
-        nb_rental_before_maintenance: data.nb_rental_before_maintenance
-          ? parseInt(data.nb_rental_before_maintenance)
-          : undefined,
-        image_path: imagePath,
-        price_per_day: data.price_per_day ? parseFloat(data.price_per_day) : 0,
-        bucket_name,
-        guests: data.guests ? data.guests.split(',') : undefined,
-        deposit: data.deposit ? parseFloat(data.deposit) : 0,
-      },
-    });
-
-    const machineRented = await getMachineRentedView(result.id)(prisma);
-
-    await updateCalendarEventMaintenance(
-      machineRented,
-      machineRented,
-      prisma,
-      machineRented.id,
-      'create',
-    );
-
-    res.json(machineRented);
   }),
 );
 
@@ -740,9 +371,7 @@ rentalMngtRoutes.get(
   '/machine-rental',
   asyncHandler(async (req, res) => {
     const rentals = await prisma.machineRental.findMany({
-      include: {
-        machineRented: true,
-      },
+      include: { machineRented: true },
     });
     res.status(200).json(rentals);
   }),
@@ -752,13 +381,10 @@ rentalMngtRoutes.get(
   '/machine-rental/:id',
   asyncHandler(async (req, res) => {
     const idParsed = parseInt(req.params.id);
-    if (isNaN(idParsed)) {
+    if (isNaN(idParsed))
       return res.status(400).json({ message: 'ID invalide.' });
-    }
-
     const rental = await prisma.$transaction(getMachineRentalView(idParsed));
-
-    return res.json(rental);
+    res.json(rental);
   }),
 );
 
@@ -767,14 +393,11 @@ rentalMngtRoutes.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-
     const rental = await prisma.machineRental.delete({
       where: { id: idParsed },
     });
-
     await deleteEvent(rental.eventId, calendarRentalId);
-
-    return res.json(rental);
+    res.json(rental);
   }),
 );
 
@@ -783,81 +406,66 @@ rentalMngtRoutes.patch(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body as Partial<MachineRental>;
-
+    const data = req.body;
     const updatedRental = await prisma.$transaction(async (prisma) => {
-      // if guests in data, clean list to remove empty strings and duplicates
       if (data.guests) {
-        data.guests = data.guests
-          .filter((guest) => !!guest)
-          .filter((guest, index, self) => self.indexOf(guest) === index);
-      }
-
-      if (data.rentalDate || data.returnDate || data.guests) {
-        const rental = await prisma.machineRental.findUnique({
-          where: { id: idParsed },
-        });
-
-        if (!rental) {
-          throw new Error('Machine rental not found');
-        }
-
-        await updateEvent(
-          rental.eventId,
-          {
-            ...(data.rentalDate && { start: new Date(data.rentalDate) }),
-            ...(data.returnDate && { end: new Date(data.returnDate) }),
-          },
-          calendarRentalId,
-          data.guests,
+        data.guests = data.guests.filter(
+          (guest: string, index: number, self: string[]) =>
+            guest && self.indexOf(guest) === index,
         );
       }
-
       await prisma.machineRental.update({
         where: { id: idParsed },
         data: { ...data },
       });
-
       const updatedRental = await getMachineRentalView(idParsed)(prisma);
-
+      if (
+        data.rentalDate ||
+        data.returnDate ||
+        data.guests ||
+        data.depositToPay ||
+        data.paid
+      ) {
+        await updateEvent(
+          updatedRental.eventId,
+          {
+            ...(data.rentalDate && { start: new Date(data.rentalDate) }),
+            ...(data.returnDate && { end: new Date(data.returnDate) }),
+            description: getEventRentalDescription(
+              updatedRental,
+              updatedRental.machineRented!,
+            ),
+          },
+          calendarRentalId,
+          updatedRental.guests,
+        );
+      }
       return updatedRental;
     });
-
-    return res.json(updatedRental);
+    res.json(updatedRental);
   }),
 );
 
-/**
- * GET /known-emails
- *
- * Returns a JSON list containing all unique, non-empty guest emails from MachineRented.
- */
+// ----------------------
+// OTHER ENDPOINTS (emails, parts, config, etc.)
+// ----------------------
+
 rentalMngtRoutes.get(
   '/known-emails',
   asyncHandler(async (req, res) => {
-    // Select only the guests field from all MachineRented and MachineRental records in a single transaction
-    const [machineRenteds, machineRentals]: [
-      { guests: string[] }[],
-      { guests: string[] }[],
-    ] = await prisma.$transaction([
-      prisma.machineRentedView.findMany({
-        select: { guests: true },
-      }),
-      prisma.machineRentalView.findMany({
-        select: { guests: true },
-      }),
+    const [machineRenteds, machineRentals] = await prisma.$transaction([
+      prisma.machineRentedView.findMany({ select: { guests: true } }),
+      prisma.machineRentalView.findMany({ select: { guests: true } }),
     ]);
-
-    // Flatten the array of guest arrays,
-    // filter out empty strings (after trimming) and deduplicate via a Set.
     const emails = [
       ...new Set(
-        [...machineRenteds, ...machineRentals].flatMap((machine) =>
-          machine.guests.filter((guest) => guest && guest.trim() !== ''),
+        [...machineRenteds, ...machineRentals].flatMap((machine: any) =>
+          machine.guests.filter(
+            (guest: string) => guest && guest.trim() !== '',
+          ),
         ),
       ),
     ];
-
     res.json(emails);
   }),
 );
@@ -877,13 +485,9 @@ rentalMngtRoutes.get(
   '/machine-rented/:id',
   asyncHandler(async (req, res) => {
     logger.info(`Getting machine rented of id ${req.params.id}`);
-    const { id } = req.params;
-    const idParsed = parseInt(id);
-
+    const idParsed = parseInt(req.params.id);
     const result = await prisma.$transaction(getMachineRentedView(idParsed));
-
     const { bucket_name, image_path, ...machineRented } = result;
-
     res.json({
       ...machineRented,
       imageUrl:
@@ -916,13 +520,10 @@ rentalMngtRoutes.put(
         .status(400)
         .json({ message: 'Veuillez fournir une configuration valide.' });
     }
-
-    // update config
     const result = await prisma.configRentalManagement.createMany({
       data: [config],
       skipDuplicates: true,
     });
-
     res.json(result);
   }),
 );
@@ -934,9 +535,8 @@ rentalMngtRoutes.delete(
     const config = await prisma.configRentalManagement.findUnique({
       where: { key },
     });
-    if (!config) {
+    if (!config)
       return res.status(404).json({ message: 'Configuration non trouvée.' });
-    }
     await prisma.configRentalManagement.delete({ where: { key } });
     res.json(config);
   }),
@@ -950,14 +550,22 @@ rentalMngtRoutes.patch(
     const config = await prisma.configRentalManagement.findUnique({
       where: { key },
     });
-    if (!config) {
+    if (!config)
       return res.status(404).json({ message: 'Configuration non trouvée.' });
-    }
     const updatedConfig = await prisma.configRentalManagement.update({
       where: { key },
       data: { value },
     });
     res.json(updatedConfig);
+  }),
+);
+
+rentalMngtRoutes.post(
+  '/login',
+  asyncHandler(async (req, res) => {
+    const role = 'RENTAL_MANAGER';
+    const key = RENTAL_MANAGER_SECRET_KEY!;
+    return await doLogin(req, res, role, key, prisma);
   }),
 );
 

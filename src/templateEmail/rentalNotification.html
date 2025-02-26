@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notification de Location</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 600px;
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        margin: auto;
+      }
+      .banner {
+        background: linear-gradient(90deg, #e63946, #457b9d);
+        padding: 15px;
+        text-align: center;
+        color: white;
+        font-size: 1.5em;
+        font-weight: bold;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+      }
+      h1 {
+        color: #333;
+      }
+      p {
+        color: #555;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 0.9em;
+        color: #777;
+      }
+      a {
+        color: #457b9d;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="banner">Forestar</div>
+      <h2>Notification de Location</h2>
+      <p>Bonjour,</p>
+      <p>Nous vous informons que la machine suivante a été louée :</p>
+      <ul>
+        <li><strong>Nom de la machine :</strong> {{machine_name}}</li>
+        <li>
+          <strong>Date de début de location :</strong> {{rental_start_date}}
+        </li>
+        <li><strong>Date de fin de location :</strong> {{rental_end_date}}</li>
+        <li><strong>Prix de la caution :</strong> {{deposit}}</li>
+        <li><strong>Prix de la location :</strong> {{rental_price}}</li>
+        <li><strong>La caution a été payée :</strong> {{deposit_paid}}</li>
+        <li><strong>La location a été payée :</strong> {{rental_paid}}</li>
+      </ul>
+      <p>
+        Vous recevrez une invitation Google Agenda pour cet événement, qui sera
+        mise à jour automatiquement.
+      </p>
+      <p>En cas de question, n'hésitez pas à nous contacter.</p>
+      <p>Cordialement,</p>
+      <p>L'équipe de Forestar</p>
+      <div class="footer">
+        <p>Ce message est généré automatiquement.</p>
+      </div>
+    </div>
+  </body>
+</html>

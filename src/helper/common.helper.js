@@ -4,6 +4,14 @@ function generateUniqueString() {
   return `${timestamp}_${randomString}`;
 }
 
+const formatPriceNumberToFrenchFormatStr = (number) => {
+  return number.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+  });
+};
+
 module.exports = {
   generateUniqueString,
+  formatPriceNumberToFrenchFormatStr,
 };
