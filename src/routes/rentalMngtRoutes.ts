@@ -31,7 +31,11 @@ import {
   updateCalendarEventMaintenance,
 } from '../helper/agenda.helper';
 import { sendRentalNotificationEmail } from '../helper/rentalEmail.helper';
-import { MachineRental, MachineRentedView } from '@prisma/client';
+import {
+  MachineRental,
+  MachineRented,
+  MachineRentedView,
+} from '@prisma/client';
 const rentalMngtRoutes = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -52,6 +56,89 @@ const supabase = createClient(
 // ----------------------
 // MACHINE RENTED ENDPOINTS
 // ----------------------
+
+rentalMngtRoutes.put(
+  '/machine-rented',
+  upload.single('image'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const data = req.body as { [K in keyof MachineRented]: string };
+
+    const bucket_name = BUCKET_NAME;
+    const fileName = req.file.originalname;
+    const imagePath = `images/${generateUniqueString()}_${fileName}`;
+    const webpBuffer = req.file.buffer; // WebP image buffer
+
+    const { data: imageUpload, error: imageError } = await supabase.storage
+      .from(bucket_name)
+      .upload(imagePath, webpBuffer, {
+        contentType: 'image/webp',
+      });
+
+    if (imageError) {
+      throw new Error(
+        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
+      );
+    }
+
+    if (data.maintenance_type === 'BY_NB_RENTAL') {
+      if (!data.nb_rental_before_maintenance) {
+        throw new Error('nb_rental_before_maintenance is required');
+      }
+    }
+
+    if (data.maintenance_type === 'BY_DAY') {
+      if (!data.nb_day_before_maintenance) {
+        throw new Error('nb_day_before_maintenance is required');
+      }
+    }
+
+    if (
+      data.maintenance_type !== 'BY_DAY' &&
+      data.maintenance_type !== 'BY_NB_RENTAL'
+    ) {
+      throw new Error('maintenance_type must be BY_DAY or BY_NB_RENTAL');
+    }
+
+    if (!data.price_per_day) {
+      throw new Error('price_per_day is required');
+    }
+
+    const result = await prisma.machineRented.create({
+      data: {
+        name: data.name,
+        maintenance_type:
+          data.maintenance_type === 'BY_DAY' ? 'BY_DAY' : 'BY_NB_RENTAL',
+        nb_day_before_maintenance: data.nb_day_before_maintenance
+          ? parseInt(data.nb_day_before_maintenance)
+          : undefined,
+        nb_rental_before_maintenance: data.nb_rental_before_maintenance
+          ? parseInt(data.nb_rental_before_maintenance)
+          : undefined,
+        image_path: imagePath,
+        price_per_day: data.price_per_day ? parseFloat(data.price_per_day) : 0,
+        bucket_name,
+        guests: data.guests ? data.guests.split(',') : undefined,
+        deposit: data.deposit ? parseFloat(data.deposit) : 0,
+      },
+    });
+
+    const machineRented = await getMachineRentedView(result.id)(prisma);
+
+    await updateCalendarEventMaintenance(
+      machineRented,
+      machineRented,
+      prisma,
+      machineRented.id,
+      'create',
+    );
+
+    res.json(machineRented);
+  }),
+);
 
 rentalMngtRoutes.post(
   '/machine-rented',
