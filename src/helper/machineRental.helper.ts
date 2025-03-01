@@ -13,13 +13,15 @@ import * as runtime from '@prisma/client/runtime/library.js';
 export function getRentalPrice(
   machineRental: MachineRental | MachineRentalView,
   machineRented: MachineRented | MachineRentedView,
+  priceShipping: number,
 ): number {
   return machineRental.returnDate && machineRented.price_per_day
     ? (machineRented.price_per_day *
         (new Date(machineRental.returnDate).getTime() -
           new Date(machineRental.rentalDate).getTime())) /
         (1000 * 60 * 60 * 24) +
-        1
+        1 +
+        (machineRental.with_shipping ? priceShipping : 0)
     : 0;
 }
 

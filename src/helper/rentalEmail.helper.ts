@@ -19,7 +19,10 @@ const templateRentalNotification = fs.readFileSync(
 /**
  * Generate email content for a rental notification.
  */
-export function generateRentalNotificationEmailContent(rental: any): string {
+export function generateRentalNotificationEmailContent(
+  rental: any,
+  priceShipping: number,
+): string {
   return templateRentalNotification
     .replace(/{{machine_name}}/g, rental.machineRented.name)
     .replace(
@@ -39,7 +42,7 @@ export function generateRentalNotificationEmailContent(rental: any): string {
     .replace(
       /{{rental_price}}/g,
       formatPriceNumberToFrenchFormatStr(
-        getRentalPrice(rental, rental.machineRented),
+        getRentalPrice(rental, rental.machineRented, priceShipping),
       ),
     )
     .replace(/{{deposit_paid}}/g, rental.depositToPay ? 'Oui' : 'Non')
@@ -51,11 +54,12 @@ export function generateRentalNotificationEmailContent(rental: any): string {
  */
 export async function sendRentalNotificationEmail(
   rental: MachineRentalView & { machineRented: MachineRentedView | null },
+  priceShipping: number,
 ): Promise<void> {
   logger.info(
     `Sending rental notification email for rental ${rental.id} to ${rental.guests}`,
   );
-  const emailContent = generateRentalNotificationEmailContent(rental);
+  const emailContent = generateRentalNotificationEmailContent(rental,priceShipping);
   const emailOptions = {
     to: rental.guests,
     subject: `Notification de location pour la machine ${rental.machineRented?.name}`,

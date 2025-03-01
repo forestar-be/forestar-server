@@ -20,6 +20,7 @@ import { getRentalPrice } from './machineRental.helper';
 export function getEventRentalDescription(
   machineRental: MachineRental | MachineRentalView,
   machineRented: MachineRented | MachineRentedView,
+  priceShipping: number,
 ): string {
   const lines = [];
   lines.push(
@@ -39,7 +40,7 @@ export function getEventRentalDescription(
     `Prix de la caution: ${formatPriceNumberToFrenchFormatStr(machineRented.deposit)}.`,
   );
   lines.push(
-    `Prix de la location: ${formatPriceNumberToFrenchFormatStr(getRentalPrice(machineRental, machineRented))}.`,
+    `Prix de la location: ${formatPriceNumberToFrenchFormatStr(getRentalPrice(machineRental, machineRented, priceShipping))}.`,
   );
   return lines.join('\n');
 }

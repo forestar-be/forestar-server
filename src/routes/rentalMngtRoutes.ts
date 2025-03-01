@@ -438,9 +438,16 @@ rentalMngtRoutes.put(
           throw new Error('Machine rented details not found');
         }
 
+        const priceShipping = await prisma.configRentalManagement.findUnique({
+          where: { key: 'Prix livraison' },
+        });
+
         if (rental.guests.length > 0) {
           // Use the email helper to send the rental notification
-          await sendRentalNotificationEmail(rental);
+          await sendRentalNotificationEmail(
+            rental,
+            Number(priceShipping?.value) || 0,
+          );
         }
 
         const eventId = await createEvent(
@@ -453,6 +460,7 @@ rentalMngtRoutes.put(
             description: getEventRentalDescription(
               rental,
               rental.machineRented,
+              Number(priceShipping?.value) || 0,
             ),
           },
           calendarRentalId,
@@ -558,6 +566,9 @@ rentalMngtRoutes.patch(
           data.depositToPay ||
           data.paid
         ) {
+          const priceShipping = await prisma.configRentalManagement.findUnique({
+            where: { key: 'Prix livraison' },
+          });
           await updateEvent(
             updatedRental.eventId,
             {
@@ -566,6 +577,7 @@ rentalMngtRoutes.patch(
               description: getEventRentalDescription(
                 updatedRental,
                 updatedRental.machineRented!,
+                Number(priceShipping?.value) || 0,
               ),
             },
             calendarRentalId,
@@ -579,7 +591,13 @@ rentalMngtRoutes.patch(
           (guest: string) => !existingRental.guests.includes(guest),
         );
         if (newGuests.length > 0) {
-          await sendRentalNotificationEmail(updatedRental);
+          const priceShipping = await prisma.configRentalManagement.findUnique({
+            where: { key: 'Prix livraison' },
+          });
+          await sendRentalNotificationEmail(
+            updatedRental,
+            Number(priceShipping?.value) || 0,
+          );
         }
 
         return updatedRental;
