@@ -24,15 +24,19 @@ import {
   getMachineRentedView,
   machineRentedNotFound,
 } from '../helper/machineRented.helper';
-import { getMachineRentalView } from '../helper/machineRental.helper';
 import {
-  getRentalPrice,
+  getForbiddenDates,
+  getMachineRentalView,
+  isRentalDateOverlapExisting,
+} from '../helper/machineRental.helper';
+import {
   getEventRentalDescription,
   updateCalendarEventMaintenance,
 } from '../helper/agenda.helper';
 import { sendRentalNotificationEmail } from '../helper/rentalEmail.helper';
 import {
   MachineRental,
+  MachineRentalView,
   MachineRented,
   MachineRentedView,
 } from '@prisma/client';
@@ -166,13 +170,14 @@ rentalMngtRoutes.post(
       {},
     );
 
-    const machineRentedList: (MachineRentedView & { imageUrl?: string })[] =
-      await prisma.machineRentedView.findMany({
-        where: filterQuery,
-        orderBy: { [sortBy]: sortOrder },
-        ...(skip && { skip }),
-        ...(take && { take }),
-      });
+    const machineRentedList: (MachineRentedView & {
+      imageUrl?: string;
+    })[] = await prisma.machineRentedView.findMany({
+      where: filterQuery,
+      orderBy: { [sortBy]: sortOrder },
+      ...(skip && { skip }),
+      ...(take && { take }),
+    });
 
     if (withImages) {
       for (const machine of machineRentedList) {
@@ -187,7 +192,8 @@ rentalMngtRoutes.post(
       }
     }
 
-    const totalCount = await prisma.machineRepair.count({ where: filter });
+    const totalCount = await prisma.machineRented.count({ where: filter });
+
     res.json({
       data: machineRentedList,
       pagination: {
@@ -404,7 +410,21 @@ rentalMngtRoutes.put(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const idParsed = parseInt(id);
-    const data = req.body;
+    const data: MachineRental = req.body;
+    const isOverlapping = await isRentalDateOverlapExisting(
+      prisma,
+      idParsed,
+      data.rentalDate,
+      data.returnDate,
+    );
+
+    if (isOverlapping) {
+      return res.status(400).json({
+        errorKey: 'overlapping_rental',
+        message: 'Les dates de location sont déjà prises',
+      });
+    }
+
     const result = await prisma
       .$transaction(async (prisma) => {
         const rentalCreated = await prisma.machineRental.create({
@@ -496,56 +516,80 @@ rentalMngtRoutes.patch(
     const { id } = req.params;
     const idParsed = parseInt(id);
     const data: Partial<MachineRental> = req.body;
-    const updatedRental = await prisma.$transaction(async (prisma) => {
-      const existingRental = await prisma.machineRental.findUnique({
-        where: { id: idParsed },
-      });
-      if (!existingRental) throw new Error('Rental not found');
+    const updatedRental:
+      | MachineRentalView
+      | { errorKey: string; message: string } = await prisma.$transaction(
+      async (prisma) => {
+        const existingRental = await prisma.machineRental.findUnique({
+          where: { id: idParsed },
+        });
+        if (!existingRental) throw new Error('Rental not found');
 
-      if (data.guests) {
-        data.guests = data.guests.filter(
-          (guest: string, index: number, self: string[]) =>
-            guest && self.indexOf(guest) === index,
+        if (data.rentalDate || data.returnDate) {
+          const isOverlapping = await isRentalDateOverlapExisting(
+            prisma,
+            existingRental.machineRentedId,
+            data.rentalDate || existingRental.rentalDate,
+            data.returnDate || existingRental.returnDate,
+          );
+          if (isOverlapping) {
+            return {
+              errorKey: 'overlapping_rental',
+              message: 'Les dates de location sont déjà prises',
+            };
+          }
+        }
+
+        if (data.guests) {
+          data.guests = data.guests.filter(
+            (guest: string, index: number, self: string[]) =>
+              guest && self.indexOf(guest) === index,
+          );
+        }
+        await prisma.machineRental.update({
+          where: { id: idParsed },
+          data: { ...data },
+        });
+        const updatedRental = await getMachineRentalView(idParsed)(prisma);
+        if (
+          data.rentalDate ||
+          data.returnDate ||
+          data.guests ||
+          data.depositToPay ||
+          data.paid
+        ) {
+          await updateEvent(
+            updatedRental.eventId,
+            {
+              ...(data.rentalDate && { start: new Date(data.rentalDate) }),
+              ...(data.returnDate && { end: new Date(data.returnDate) }),
+              description: getEventRentalDescription(
+                updatedRental,
+                updatedRental.machineRented!,
+              ),
+            },
+            calendarRentalId,
+            updatedRental.guests,
+          );
+        }
+
+        // check if new guests are added by comparing the new guests with the old guests
+        // send notification only to the new guests
+        const newGuests = updatedRental.guests.filter(
+          (guest: string) => !existingRental.guests.includes(guest),
         );
-      }
-      await prisma.machineRental.update({
-        where: { id: idParsed },
-        data: { ...data },
-      });
-      const updatedRental = await getMachineRentalView(idParsed)(prisma);
-      if (
-        data.rentalDate ||
-        data.returnDate ||
-        data.guests ||
-        data.depositToPay ||
-        data.paid
-      ) {
-        await updateEvent(
-          updatedRental.eventId,
-          {
-            ...(data.rentalDate && { start: new Date(data.rentalDate) }),
-            ...(data.returnDate && { end: new Date(data.returnDate) }),
-            description: getEventRentalDescription(
-              updatedRental,
-              updatedRental.machineRented!,
-            ),
-          },
-          calendarRentalId,
-          updatedRental.guests,
-        );
-      }
+        if (newGuests.length > 0) {
+          await sendRentalNotificationEmail(updatedRental);
+        }
 
-      // check if new guests are added by comparing the new guests with the old guests
-      // send notification only to the new guests
-      const newGuests = updatedRental.guests.filter(
-        (guest: string) => !existingRental.guests.includes(guest),
-      );
-      if (newGuests.length > 0) {
-        await sendRentalNotificationEmail(updatedRental);
-      }
+        return updatedRental;
+      },
+    );
 
-      return updatedRental;
-    });
+    if ('errorKey' in updatedRental) {
+      return res.status(400).json(updatedRental);
+    }
+
     res.json(updatedRental);
   }),
 );

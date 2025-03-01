@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { sendEmail as sendEmailMailer } from './mailer';
 import { formatPriceNumberToFrenchFormatStr } from './common.helper';
-import { getEventRentalDescription, getRentalPrice } from './agenda.helper';
+import { getRentalPrice } from './machineRental.helper';
 import logger from '../config/logger';
 import { MachineRentalView, MachineRentedView } from '@prisma/client';
 

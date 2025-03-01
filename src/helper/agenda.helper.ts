@@ -12,21 +12,7 @@ import {
   deleteEvent,
   calendarEntretienId,
 } from './rentalCalendar.helper';
-
-/**
- * Calculate the rental price based on the rental and machine details.
- */
-export function getRentalPrice(
-  machineRental: MachineRental | MachineRentalView,
-  machineRented: MachineRented | MachineRentedView,
-): number {
-  return machineRental.returnDate && machineRented.price_per_day
-    ? (machineRented.price_per_day *
-        (new Date(machineRental.returnDate).getTime() -
-          new Date(machineRental.rentalDate).getTime())) /
-        (1000 * 60 * 60 * 24)
-    : 0;
-}
+import { getRentalPrice } from './machineRental.helper';
 
 /**
  * Build a detailed event description for a rental.

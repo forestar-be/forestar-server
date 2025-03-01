@@ -81,6 +81,31 @@ SELECT
       ELSE NULL :: timestamp without time zone
     END
     ELSE NULL :: timestamp without time zone
-  END AS next_maintenance
+  END AS next_maintenance,
+  (
+    SELECT
+      array_agg(DISTINCT dates.day) AS array_agg
+    FROM
+      (
+        "MachineRental" rental
+        CROSS JOIN LATERAL (
+          SELECT
+            (
+              generate_series(
+                ((rental."rentalDate") :: date) :: timestamp WITH time zone,
+                (
+                  COALESCE(
+                    (rental."returnDate") :: date,
+                    (rental."rentalDate") :: date
+                  )
+                ) :: timestamp WITH time zone,
+                '1 day' :: INTERVAL
+              )
+            ) :: date AS DAY
+        ) dates
+      )
+    WHERE
+      (rental."machineRentedId" = mr.id)
+  ) AS "forbiddenRentalDays"
 FROM
   "MachineRented" mr;

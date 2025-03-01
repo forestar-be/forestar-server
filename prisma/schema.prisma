@@ -168,6 +168,7 @@ view MachineRentedView {
   guests                       String[]
   deposit                      Float?
   next_maintenance             DateTime?        @db.Timestamp(6)
+  forbiddenRentalDays          DateTime[]       @db.Date
 }
 
 view MachineRentalView {

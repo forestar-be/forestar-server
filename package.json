@@ -8,6 +8,7 @@
     "build": "tsc && cp -R src/templateEmail dist/templateEmail",
     "start": "node dist/app.js",
     "dev": "nodemon -r ts-node/register --watch src --ext js,ts,json src/app.js",
+    "debug": "nodemon --inspect -r ts-node/register --watch src --ext js,ts,json src/app.js",
     "generate-prisma": "prisma generate"
   },
   "dependencies": {
