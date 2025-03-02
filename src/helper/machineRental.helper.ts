@@ -6,6 +6,7 @@ import {
   PrismaClient,
 } from '@prisma/client';
 import * as runtime from '@prisma/client/runtime/library.js';
+import dayjs from 'dayjs';
 
 /**
  * Calculate the rental price based on the rental and machine details.
@@ -15,14 +16,18 @@ export function getRentalPrice(
   machineRented: MachineRented | MachineRentedView,
   priceShipping: number,
 ): number {
-  return machineRental.returnDate && machineRented.price_per_day
-    ? (machineRented.price_per_day *
-        (new Date(machineRental.returnDate).getTime() -
-          new Date(machineRental.rentalDate).getTime())) /
-        (1000 * 60 * 60 * 24) +
-        1 +
-        (machineRental.with_shipping ? priceShipping : 0)
-    : 0;
+  if (machineRental.returnDate && machineRented.price_per_day) {
+    const startDate = dayjs(machineRental.rentalDate);
+    const endDate = dayjs(machineRental.returnDate);
+    const diffDays = endDate.diff(startDate, 'day') + 1; // +1 to include the first day
+
+    return (
+      machineRented.price_per_day * diffDays +
+      (machineRental.with_shipping ? priceShipping : 0)
+    );
+  }
+
+  return 0;
 }
 
 /**
