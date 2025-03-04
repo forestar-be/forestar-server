@@ -5,6 +5,14 @@ import logger from '../config/logger';
 import { MachineRentedView, Prisma } from '@prisma/client';
 import prisma from './prisma';
 import { sendEmail } from './mailer';
+import dayjs from 'dayjs';
+import 'dayjs/locale/fr';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.locale('fr');
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Environment variables validation
 const REQUIRED_ENV_VARS = [
@@ -35,17 +43,15 @@ const generateEmailContent = (
   machine: MachineRentedView,
   templateName: string,
 ) => {
-  const nextMaintenanceDate =
-    machine.next_maintenance?.toLocaleDateString('fr-FR') || 'Non définie';
+  const nextMaintenanceDate = machine.next_maintenance
+    ? dayjs(machine.next_maintenance).tz('Europe/Paris').format('DD/MM/YYYY')
+    : 'Non définie';
   const daysLate = machine.next_maintenance
-    ? Math.floor((Date.now() - machine.next_maintenance.getTime()) / 86400000)
+    ? dayjs().diff(dayjs(machine.next_maintenance).tz('Europe/Paris'), 'day')
     : 0;
   const nbDaysRemaining = Math.max(
     0,
-    Math.floor(
-      (machine.next_maintenance?.getTime() || Date.now()) / 86400000 -
-        Date.now() / 86400000,
-    ),
+    dayjs(machine.next_maintenance).tz('Europe/Paris').diff(dayjs(), 'day'),
   );
 
   return readHtmlTemplate(templateName)
