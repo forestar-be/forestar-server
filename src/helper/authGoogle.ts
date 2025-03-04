@@ -29,6 +29,30 @@ const oAuth2Client: OAuth2Client = new google.auth.OAuth2(
   redirect_uris?.[0] || process.env.OAUTH_REDIRECT_URI,
 );
 
+// Add token update event handler
+oAuth2Client.on('tokens', (tokens) => {
+  if (tokens.refresh_token) {
+    // Store the new tokens
+    const existingTokens = fs.existsSync(TOKEN_PATH)
+      ? JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'))
+      : {};
+    const newTokens = { ...existingTokens, ...tokens };
+    logger.info('Received new refresh token, updating stored tokens');
+    fs.writeFileSync(TOKEN_PATH, JSON.stringify(newTokens));
+  } else if (tokens.access_token) {
+    // Update the access token only
+    const existingTokens = fs.existsSync(TOKEN_PATH)
+      ? JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'))
+      : {};
+    const newTokens = { ...existingTokens, access_token: tokens.access_token };
+    if (tokens.expiry_date) {
+      newTokens.expiry_date = tokens.expiry_date;
+    }
+    logger.info('Received new access token, updating stored tokens');
+    fs.writeFileSync(TOKEN_PATH, JSON.stringify(newTokens));
+  }
+});
+
 let authenticated = false;
 
 const verifyToken = async () => {
@@ -45,17 +69,34 @@ const verifyToken = async () => {
 
 if (fs.existsSync(TOKEN_PATH)) {
   logger.info(`Reading token from ${TOKEN_PATH}`);
-  oAuth2Client.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8')));
+  try {
+    const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+    oAuth2Client.setCredentials(tokens);
 
-  verifyToken().then((isValid) => {
-    authenticated = isValid;
-    if (!isValid) {
-      logger.warn('Token is invalid or expired');
-      oAuth2Client.setCredentials({});
+    // For tokens with a refresh_token, try to ensure we have a valid access token
+    if (tokens.refresh_token) {
+      logger.info(
+        'Found refresh token, attempting to refresh access token if needed',
+      );
     }
-  });
+
+    verifyToken().then((isValid) => {
+      authenticated = isValid;
+      if (!isValid) {
+        logger.warn('Token verification failed - check logs for details');
+        // Don't clear credentials as they may contain a valid refresh token
+      } else {
+        logger.info('Successfully authenticated with Google');
+      }
+    });
+  } catch (error) {
+    logger.error(
+      `Error reading or parsing token file: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    logger.warn('Authorization will be required');
+  }
 } else {
-  logger.warn('Token file not found');
+  logger.warn('Token file not found, authorization will be required');
 }
 
 export const getAuthUrl = () => {
@@ -67,17 +108,45 @@ export const getAuthUrl = () => {
 };
 
 export const authenticate = async (code: string) => {
-  const { tokens } = await oAuth2Client.getToken(code);
-  oAuth2Client.setCredentials(tokens);
+  try {
+    const { tokens } = await oAuth2Client.getToken(code);
 
-  logger.info(`Writing token to ${TOKEN_PATH}`);
-  fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-  logger.info('Token stored');
+    // Ensure we keep the refresh token if we already had one
+    if (fs.existsSync(TOKEN_PATH)) {
+      try {
+        const existingTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+        // If the new tokens don't have a refresh token but the old ones do, keep it
+        if (!tokens.refresh_token && existingTokens.refresh_token) {
+          logger.info(
+            'Preserving existing refresh token since new tokens did not include one',
+          );
+          tokens.refresh_token = existingTokens.refresh_token;
+        }
+      } catch (error) {
+        logger.warn(
+          `Error reading existing tokens, using only new tokens: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
-  authenticated = await verifyToken();
+    oAuth2Client.setCredentials(tokens);
 
-  if (!authenticated) {
-    throw new Error('Failed to authenticate');
+    logger.info(`Writing token to ${TOKEN_PATH}`);
+    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
+    logger.info('Token stored');
+
+    authenticated = await verifyToken();
+
+    if (!authenticated) {
+      throw new Error('Failed to authenticate');
+    }
+
+    return tokens;
+  } catch (error) {
+    logger.error(
+      `Authentication error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw error;
   }
 };
 
@@ -88,10 +157,30 @@ export const getOAuth2Client = () => oAuth2Client;
 export const initRefreshTokenCron = () => {
   logger.info('Starting token refresh cron job');
   cron.schedule('0 0 * * *', async () => {
-    logger.info('Refreshing token');
-    authenticated = await verifyToken();
-    if (!authenticated) {
-      logger.error('Failed to refresh token');
+    logger.info('Checking token validity');
+
+    // Force a token refresh if we have a refresh token
+    if (fs.existsSync(TOKEN_PATH)) {
+      const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+
+      if (tokens.refresh_token) {
+        try {
+          // This will trigger a refresh if the access token is expired
+          const oauth2 = google.oauth2({ version: 'v2', auth: oAuth2Client });
+          await oauth2.userinfo.get();
+          authenticated = true;
+          logger.info('Token refreshed successfully');
+        } catch (error: any) {
+          logger.error(`Failed to refresh token: ${error.message}`);
+          authenticated = false;
+        }
+      } else {
+        logger.warn('No refresh token found in stored credentials');
+        authenticated = await verifyToken();
+      }
+    } else {
+      logger.warn('No token file found during refresh check');
+      authenticated = false;
     }
   });
 };
