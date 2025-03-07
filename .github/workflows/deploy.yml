@@ -1,0 +1,113 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create secrets directory
+        run: |
+          mkdir -p ./secrets
+
+      - name: Create key file JSON
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: 'key-file.json'
+          json: ${{ secrets.KEY_FILE_CONTENT }}
+          dir: './secrets/'
+
+      - name: Create OAuth client secret JSON
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: 'oauth-client-secret.json'
+          json: ${{ secrets.OAUTH_CLIENT_SECRET_FILE_CONTENT }}
+          dir: './secrets/'
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add host key to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Install rsync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
+      - name: Copy files to VPS
+        run: |
+          rsync -avz --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude 'secrets' . ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.PROJECT_PATH }}
+
+      - name: Copy JSON secret files to appropriate location
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "mkdir -p $(dirname ${{ secrets.KEY_FILE }}) $(dirname ${{ secrets.OAUTH_CLIENT_SECRET_FILE }})"
+          rsync -avz ./secrets/key-file.json ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.KEY_FILE }}
+          rsync -avz ./secrets/oauth-client-secret.json ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.OAUTH_CLIENT_SECRET_FILE }}
+
+      - name: Setup Docker environment file
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
+            echo \"# Database configuration\" > .env.docker && \
+            echo \"POSTGRES_USER=${{ secrets.POSTGRES_USER }}\" >> .env.docker && \
+            echo \"POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}\" >> .env.docker && \
+            echo \"POSTGRES_DB=${{ secrets.POSTGRES_DB }}\" >> .env.docker && \
+            echo \"DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@db:5432/${{ secrets.POSTGRES_DB }}?schema=public\" >> .env.docker && \
+            echo \"# Application configuration\" >> .env.docker && \
+            echo \"FRONTEND_URL=${{ secrets.FRONTEND_URL }}\" >> .env.docker && \
+            echo \"API_URL=${{ secrets.API_URL }}\" >> .env.docker && \
+            echo \"TO_EMAIL=${{ secrets.TO_EMAIL }}\" >> .env.docker && \
+            echo \"AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}\" >> .env.docker && \
+            echo \"API_KEY_BREVO=${{ secrets.API_KEY_BREVO }}\" >> .env.docker && \
+            echo \"OPERATOR_SECRET_KEY=${{ secrets.OPERATOR_SECRET_KEY }}\" >> .env.docker && \
+            echo \"SUPERVISOR_SECRET_KEY=${{ secrets.SUPERVISOR_SECRET_KEY }}\" >> .env.docker && \
+            echo \"RENTAL_MANAGER_SECRET_KEY=${{ secrets.RENTAL_MANAGER_SECRET_KEY }}\" >> .env.docker && \
+            echo \"EMAIL_SERVICE=${{ secrets.EMAIL_SERVICE }}\" >> .env.docker && \
+            echo \"EMAIL_USER=${{ secrets.EMAIL_USER }}\" >> .env.docker && \
+            echo \"EMAIL_PASS=${{ secrets.EMAIL_PASS }}\" >> .env.docker && \
+            echo \"REPLY_TO=${{ secrets.REPLY_TO }}\" >> .env.docker && \
+            echo \"DRIVE_FOLDER_ID=${{ secrets.DRIVE_FOLDER_ID }}\" >> .env.docker && \
+            echo \"ADMIN_SECRET_KEY=${{ secrets.ADMIN_SECRET_KEY }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_ENTRETIEN_ID=${{ secrets.GOOGLE_CALENDAR_ENTRETIEN_ID }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_RENTAL_ID=${{ secrets.GOOGLE_CALENDAR_RENTAL_ID }}\" >> .env.docker && \
+            echo \"BUCKET_IMAGE_MACHINES=${{ secrets.BUCKET_IMAGE_MACHINES }}\" >> .env.docker && \
+            echo \"EMAILS_REMINDER_MAINTENANCE=${{ secrets.EMAILS_REMINDER_MAINTENANCE }}\" >> .env.docker && \
+            echo \"RENTAL_MANAGEMENT_FRONTEND_URL=${{ secrets.RENTAL_MANAGEMENT_FRONTEND_URL }}\" >> .env.docker && \
+            echo \"OAUTH_REDIRECT_URI=${{ secrets.OAUTH_REDIRECT_URI }}\" >> .env.docker && \
+            echo \"KEY_FILE=${{ secrets.KEY_FILE }}\" >> .env.docker && \
+            echo \"OAUTH_CLIENT_SECRET_FILE=${{ secrets.OAUTH_CLIENT_SECRET_FILE }}\" >> .env.docker && \
+            echo \"OAUTH_CLIENT_TOKEN_FILE=${{ secrets.OAUTH_CLIENT_TOKEN_FILE }}\" >> .env.docker && \
+            echo \"SUPABASE_URL=${{ secrets.SUPABASE_URL }}\" >> .env.docker && \
+            echo \"SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}\" >> .env.docker"
+
+      - name: Update docker compose
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
+            sed -i 's|POSTGRES_USER|${{ secrets.POSTGRES_USER }}|g' docker-compose.yml && \
+            sed -i 's|POSTGRES_DB|${{ secrets.POSTGRES_DB }}|g' docker-compose.yml && \
+            sed -i 's|POSTGRES_DATA_DIR|${{ secrets.POSTGRES_DATA_DIR }}|g' docker-compose.yml && \
+            sed -i 's|PORTAINER_DATA_DIR|${{ secrets.PORTAINER_DATA_DIR }}|g' docker-compose.yml && \
+            sed -i 's|SECRET_DIR|${{ secrets.SECRET_DIR }}|g' docker-compose.yml"
+
+      - name: Deploy with Docker
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
+            docker-compose down && \
+            docker-compose build --no-cache && \
+            docker-compose up -d"
+
+      - name: Check deployment status
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
+            docker-compose ps"

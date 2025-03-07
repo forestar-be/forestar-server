@@ -1,3 +1,4 @@
+CREATE VIEW "MachineRentedView" AS
 SELECT
   mr.id,
   mr.name,

@@ -1,3 +1,4 @@
+CREATE VIEW "MachineRentalView" AS
 SELECT
   mr.id,
   mr."machineRentedId",

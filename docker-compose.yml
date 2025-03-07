@@ -1,0 +1,54 @@
+services:
+  db:
+    container_name: db
+    image: postgres:16-alpine
+    restart: always
+    env_file:
+      - .env.docker
+    volumes:
+      - POSTGRES_DATA_DIR:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U POSTGRES_USER -d POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    container_name: server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+    volumes:
+      - SECRET_DIR:SECRET_DIR
+    networks:
+      - app_network
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - PORTAINER_DATA_DIR:/data
+    expose:
+      - '9000'
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
