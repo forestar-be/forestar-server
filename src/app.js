@@ -5,6 +5,9 @@ require('dotenv').config();
 
 import rentalMngtRoutes from './routes/rentalMngtRoutes';
 import { initRefreshTokenCron } from './helper/authGoogle';
+import authenticateImageAccess from './middleware/imageAuthMiddleware';
+import path from 'path';
+import fs from 'fs';
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -21,6 +24,15 @@ const { initPingCron } = require('./helper/pingInterval');
 
 const app = express();
 const port = 3001;
+
+// Directory where images are stored
+const IMAGES_BASE_DIR = process.env.IMAGES_BASE_DIR || '/app/images';
+
+// Ensure images directory exists
+if (!fs.existsSync(IMAGES_BASE_DIR)) {
+  fs.mkdirSync(IMAGES_BASE_DIR, { recursive: true });
+  logger.info(`Created images directory at ${IMAGES_BASE_DIR}`);
+}
 
 // Middleware CORS
 app.use(
@@ -58,6 +70,12 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Image authentication middleware
+app.use(authenticateImageAccess);
+
+// Serve image files statically
+app.use('/images', express.static(IMAGES_BASE_DIR));
 
 // Routes
 app.use('/operator', authMiddleware, operatorRoutes);

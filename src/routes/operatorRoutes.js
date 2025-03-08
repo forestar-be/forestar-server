@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
-const { createClient } = require('@supabase/supabase-js');
 const prisma = new PrismaClient();
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -11,35 +10,14 @@ const bcrypt = require('bcrypt');
 const asyncHandler = require('../helper/asyncHandler').default;
 const { generateUniqueString } = require('../helper/common.helper');
 const { doLogin } = require('../helper/auth.helper');
+const fs = require('fs');
+const path = require('path');
+const { saveFile } = require('../helper/file.helper');
 
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
+const IMAGES_BASE_DIR = process.env.IMAGES_BASE_DIR || '/app/images';
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY,
-);
 const bucketName = process.env.BUCKET_IMAGE_NAME;
-
-// Function to convert Base64 string to Blob
-function base64ToBlob(base64, contentType = '', sliceSize = 512) {
-  const byteCharacters = atob(base64.split(',')[1]);
-  const byteArrays = [];
-
-  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-    const slice = byteCharacters.slice(offset, offset + sliceSize);
-
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-
-    const byteArray = new Uint8Array(byteNumbers);
-    byteArrays.push(byteArray);
-  }
-
-  return new Blob(byteArrays, { type: contentType });
-}
 
 router.post(
   '/submit',
@@ -116,34 +94,41 @@ router.post(
       const webpBuffer = req.file.buffer; // WebP image buffer
       const fileName = req.file.originalname;
 
-      // Upload the WebP image to Supabase Storage
-      const imagePath = `images/${generateUniqueString()}_${fileName}`;
-      const { data: imageUpload, error: imageError } = await supabase.storage
-        .from(bucketName)
-        .upload(imagePath, webpBuffer, {
-          contentType: 'image/webp',
-        });
+      // Save the WebP image to local storage
+      const uniqueString = generateUniqueString();
+      const imagePath = `${uniqueString}_${fileName}`;
 
-      if (imageError) {
+      try {
+        saveFile(bucketName, imagePath, webpBuffer);
+      } catch (error) {
         throw new Error(
-          `Erreur lors du téléchargement de l'image : ${imageError.message}`,
+          `Error saving image to local storage: ${error.message}`,
         );
       }
 
-      // Convert base64 signature to a Blob and upload to Supabase
-      const signatureBuffer = base64ToBlob(signature, 'image/png');
-      const signatureFileName = `signature_${generateUniqueString()}.png`;
+      // Convert base64 signature to a Buffer and save to local storage
+      // Extract the base64 data part (remove the data:image/png;base64, prefix)
+      const base64Data = signature.split(',')[1];
+      // Convert base64 to Buffer directly
+      const signatureBuffer = Buffer.from(base64Data, 'base64');
+      const signatureFileName = `signature_${uniqueString}.png`;
       const signaturePath = `signatures/${signatureFileName}`;
-      const { data: signatureUpload, error: signatureError } =
-        await supabase.storage
-          .from(bucketName)
-          .upload(signaturePath, signatureBuffer, {
-            contentType: 'image/png',
-          });
 
-      if (signatureError) {
+      try {
+        // Ensure signatures directory exists
+        const signaturesDir = path.join(
+          IMAGES_BASE_DIR,
+          bucketName,
+          'signatures',
+        );
+        if (!fs.existsSync(signaturesDir)) {
+          fs.mkdirSync(signaturesDir, { recursive: true });
+        }
+
+        saveFile(bucketName, signaturePath, signatureBuffer);
+      } catch (error) {
         throw new Error(
-          `Erreur lors du téléchargement de la signature : ${signatureError.message}`,
+          `Error saving signature to local storage: ${error.message}`,
         );
       }
 

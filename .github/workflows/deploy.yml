@@ -92,8 +92,9 @@ jobs:
             echo \"OAUTH_CLIENT_SECRET_FILE=${{ secrets.OAUTH_CLIENT_SECRET_FILE }}\" >> .env.docker && \
             echo \"OAUTH_CLIENT_TOKEN_FILE=${{ secrets.OAUTH_CLIENT_TOKEN_FILE }}\" >> .env.docker && \
             echo \"BUCKET_IMAGE_NAME=${{ secrets.BUCKET_IMAGE_NAME }}\" >> .env.docker && \
-            echo \"SUPABASE_URL=${{ secrets.SUPABASE_URL }}\" >> .env.docker && \
-            echo \"SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}\" >> .env.docker"
+            echo \"IMAGES_SECRET_KEY=${{ secrets.IMAGES_SECRET_KEY }}\" >> .env.docker && \
+            echo \"IMAGES_BASE_DIR=${{ secrets.IMAGES_BASE_DIR }}\" >> .env.docker && \
+            echo \"PUBLIC_BUCKET_NAMES=${{ secrets.PUBLIC_BUCKET_NAMES }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
@@ -105,7 +106,9 @@ jobs:
             sed -i 's|SECRET_DIR|${{ secrets.SECRET_DIR }}|g' docker-compose.yml && \
             sed -i 's|PORTAINER_SSL_CERT|${{ secrets.PORTAINER_SSL_CERT }}|g' docker-compose.yml && \
             sed -i 's|PORTAINER_SSL_KEY|${{ secrets.PORTAINER_SSL_KEY }}|g' docker-compose.yml && \
-            sed -i 's|LOG_DIR|${{ secrets.LOG_DIR }}|g' docker-compose.yml"
+            sed -i 's|LOG_DIR|${{ secrets.LOG_DIR }}|g' docker-compose.yml && \
+            sed -i 's|IMAGES_BASE_DIR|${{ secrets.IMAGES_BASE_DIR }}|g' docker-compose.yml && \
+            sed -i 's|IMAGES_DIR|${{ secrets.IMAGES_DIR }}|g' docker-compose.yml"
 
       - name: Deploy with Docker
         run: |

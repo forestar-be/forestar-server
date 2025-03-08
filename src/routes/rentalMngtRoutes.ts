@@ -2,17 +2,13 @@
 import express from 'express';
 import asyncHandler from '../helper/asyncHandler';
 import { doLogin } from '../helper/auth.helper';
-import { createClient } from '@supabase/supabase-js';
 import multer from 'multer';
 import logger from '../config/logger';
 import prisma from '../helper/prisma';
-import path from 'path';
+import { saveFile, deleteFile } from '../helper/file.helper';
 
-import {
-  generateUniqueString,
-  formatPriceNumberToFrenchFormatStr,
-} from '../helper/common.helper';
-import { getImagePublicUrl, notFoundImage } from '../helper/supabase.helper';
+import { generateUniqueString } from '../helper/common.helper';
+import { getImagePublicUrl, notFoundImage } from '../helper/images.helper';
 import {
   calendarRentalId,
   createEvent,
@@ -25,7 +21,6 @@ import {
   machineRentedNotFound,
 } from '../helper/machineRented.helper';
 import {
-  getForbiddenDates,
   getMachineRentalView,
   isRentalDateOverlapExisting,
 } from '../helper/machineRental.helper';
@@ -48,14 +43,6 @@ const BUCKET_NAME = process.env.BUCKET_IMAGE_MACHINES;
 if (!RENTAL_MANAGER_SECRET_KEY)
   throw new Error('RENTAL_MANAGER_SECRET_KEY is not set');
 if (!BUCKET_NAME) throw new Error('BUCKET_IMAGE_MACHINES is not set');
-if (!process.env.SUPABASE_URL) throw new Error('SUPABASE_URL is not set');
-if (!process.env.SUPABASE_KEY) throw new Error('SUPABASE_KEY is not set');
-
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY,
-);
 
 // ----------------------
 // MACHINE RENTED ENDPOINTS
@@ -76,17 +63,8 @@ rentalMngtRoutes.put(
     const imagePath = `images/${generateUniqueString()}_${fileName}`;
     const webpBuffer = req.file.buffer; // WebP image buffer
 
-    const { data: imageUpload, error: imageError } = await supabase.storage
-      .from(bucket_name)
-      .upload(imagePath, webpBuffer, {
-        contentType: 'image/webp',
-      });
-
-    if (imageError) {
-      throw new Error(
-        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
-      );
-    }
+    // Save the file to the local filesystem
+    saveFile(bucket_name, imagePath, webpBuffer);
 
     if (data.maintenance_type === 'BY_NB_RENTAL') {
       if (!data.nb_rental_before_maintenance) {
@@ -183,11 +161,7 @@ rentalMngtRoutes.post(
       for (const machine of machineRentedList) {
         machine.imageUrl =
           machine.bucket_name && machine.image_path
-            ? await getImagePublicUrl(
-                supabase,
-                machine.bucket_name,
-                machine.image_path,
-              )
+            ? await getImagePublicUrl(machine.bucket_name, machine.image_path)
             : notFoundImage;
       }
     }
@@ -219,33 +193,25 @@ rentalMngtRoutes.patch(
     if (!machineRented)
       return res.status(404).json({ message: 'Machine rented not found' });
     const bucket_name: string = machineRented.bucket_name || BUCKET_NAME;
+
+    // Delete the old image if it exists
     if (machineRented.image_path) {
-      const { error: deleteError } = await supabase.storage
-        .from(bucket_name)
-        .remove([machineRented.image_path]);
-      if (deleteError)
-        throw new Error(
-          `Erreur lors de la suppression de l'image : ${deleteError.message}`,
-        );
+      deleteFile(bucket_name, machineRented.image_path);
     }
+
     const fileName = req.file.originalname;
     const imagePath = `images/${generateUniqueString()}_${fileName}`;
     const webpBuffer = req.file.buffer;
-    const { error: imageError } = await supabase.storage
-      .from(bucket_name)
-      .upload(imagePath, webpBuffer, {
-        contentType: 'image/webp',
-      });
-    if (imageError)
-      throw new Error(
-        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
-      );
+
+    // Save the file to the local filesystem
+    saveFile(bucket_name, imagePath, webpBuffer);
+
     await prisma.machineRented.update({
       where: { id: parseInt(id) },
       data: { image_path: imagePath, bucket_name },
     });
     res.json({
-      imageUrl: await getImagePublicUrl(supabase, bucket_name, imagePath),
+      imageUrl: await getImagePublicUrl(bucket_name, imagePath),
     });
   }),
 );
@@ -658,7 +624,7 @@ rentalMngtRoutes.get(
       ...machineRented,
       imageUrl:
         bucket_name && image_path
-          ? await getImagePublicUrl(supabase, bucket_name, image_path)
+          ? await getImagePublicUrl(bucket_name, image_path)
           : notFoundImage,
     });
   }),

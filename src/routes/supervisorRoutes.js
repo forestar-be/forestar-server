@@ -3,7 +3,6 @@ import { sendEmail } from '../helper/mailer';
 const express = require('express');
 const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
-const { createClient } = require('@supabase/supabase-js');
 const prisma = new PrismaClient();
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -13,15 +12,10 @@ const asyncHandler = require('../helper/asyncHandler').default;
 
 const { uploadFileToDrive } = require('../helper/ggdrive');
 const { generateUniqueString } = require('../helper/common.helper');
-const { getImageUrl } = require('../helper/supabase.helper');
+const { getImageUrl } = require('../helper/images.helper');
+const { deleteFile, saveFile } = require('../helper/file.helper');
 
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
-
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY,
-);
 
 // POST /machine-repairs
 router.post(
@@ -112,14 +106,10 @@ router.get(
       try {
         const imageUrls = await Promise.all(
           image_path_list.map((image_path) =>
-            getImageUrl(supabase, bucket_name, image_path),
+            getImageUrl(bucket_name, image_path),
           ),
         );
-        const signatureUrl = await getImageUrl(
-          supabase,
-          bucket_name,
-          client_signature,
-        );
+        const signatureUrl = await getImageUrl(bucket_name, client_signature);
         res.json({ ...response, imageUrls, signatureUrl });
       } catch (error) {
         logger.error(error);
@@ -155,14 +145,9 @@ router.delete(
     }
 
     try {
-      const { error: removeError } = await supabase.storage
-        .from(bucket_name)
-        .remove([image_path]);
-      if (removeError) {
-        throw new Error(
-          `Erreur lors de la suppression de l'image : ${removeError.message}`,
-        );
-      }
+      // Delete the file from local storage
+      deleteFile(bucket_name, image_path);
+
       const newImagePathList = image_path_list.filter(
         (path) => path !== image_path,
       );
@@ -175,7 +160,7 @@ router.delete(
 
       const imageUrls = await Promise.all(
         newImagePathList.map(async (image_path) => {
-          return await getImageUrl(supabase, bucket_name, image_path);
+          return await getImageUrl(bucket_name, image_path);
         }),
       );
 
@@ -213,16 +198,10 @@ router.put(
     const fileName = req.file.originalname;
     const imagePath = `images/${generateUniqueString()}_${fileName}`;
 
-    const { data: imageUpload, error: imageError } = await supabase.storage
-      .from(bucket_name)
-      .upload(imagePath, webpBuffer, {
-        contentType: 'image/webp',
-      });
-
-    if (imageError) {
-      throw new Error(
-        `Erreur lors du téléchargement de l'image : ${imageError.message}`,
-      );
+    try {
+      saveFile(bucket_name, imagePath, webpBuffer);
+    } catch (error) {
+      throw new Error(`Error saving image to local storage: ${error.message}`);
     }
 
     const newImagePathList = [...image_path_list, imagePath];
@@ -235,7 +214,7 @@ router.put(
 
     const imageUrls = await Promise.all(
       newImagePathList.map(async (image_path) => {
-        return await getImageUrl(supabase, bucket_name, image_path);
+        return await getImageUrl(bucket_name, image_path);
       }),
     );
 
@@ -331,22 +310,20 @@ router.delete(
         await Promise.all(
           image_path_list.map(async (image_path) => {
             logger.info(`Deleting image: ${image_path} in ${bucket_name}`);
-            const { error: removeError } = await supabase.storage
-              .from(bucket_name)
-              .remove([image_path]);
-            if (removeError) {
-              throw new Error(`Prisma error: ${removeError.message}`);
+            try {
+              deleteFile(bucket_name, image_path);
+            } catch (error) {
+              throw new Error(`Error deleting file: ${error.message}`);
             }
           }),
         );
         logger.info(
           `Deleting signature: ${client_signature} in ${bucket_name}`,
         );
-        const { error: removeError } = await supabase.storage
-          .from(bucket_name)
-          .remove([client_signature]);
-        if (removeError) {
-          throw new Error(`Prisma error: ${removeError.message}`);
+        try {
+          deleteFile(bucket_name, client_signature);
+        } catch (error) {
+          throw new Error(`Error deleting file: ${error.message}`);
         }
       } catch (error) {
         logger.error(error);
