@@ -77,9 +77,11 @@ jobs:
             echo \"EMAIL_USER=${{ secrets.EMAIL_USER }}\" >> .env.docker && \
             echo \"EMAIL_PASS=${{ secrets.EMAIL_PASS }}\" >> .env.docker && \
             echo \"REPLY_TO=${{ secrets.REPLY_TO }}\" >> .env.docker && \
+            echo \"TO=${{ secrets.TO }}\" >> .env.docker && \
             echo \"DRIVE_FOLDER_ID=${{ secrets.DRIVE_FOLDER_ID }}\" >> .env.docker && \
             echo \"ADMIN_SECRET_KEY=${{ secrets.ADMIN_SECRET_KEY }}\" >> .env.docker && \
             echo \"GOOGLE_CALENDAR_ENTRETIEN_ID=${{ secrets.GOOGLE_CALENDAR_ENTRETIEN_ID }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }}\" >> .env.docker && \
             echo \"GOOGLE_CALENDAR_RENTAL_ID=${{ secrets.GOOGLE_CALENDAR_RENTAL_ID }}\" >> .env.docker && \
             echo \"BUCKET_IMAGE_MACHINES=${{ secrets.BUCKET_IMAGE_MACHINES }}\" >> .env.docker && \
             echo \"EMAILS_REMINDER_MAINTENANCE=${{ secrets.EMAILS_REMINDER_MAINTENANCE }}\" >> .env.docker && \
@@ -88,6 +90,7 @@ jobs:
             echo \"KEY_FILE=${{ secrets.KEY_FILE }}\" >> .env.docker && \
             echo \"OAUTH_CLIENT_SECRET_FILE=${{ secrets.OAUTH_CLIENT_SECRET_FILE }}\" >> .env.docker && \
             echo \"OAUTH_CLIENT_TOKEN_FILE=${{ secrets.OAUTH_CLIENT_TOKEN_FILE }}\" >> .env.docker && \
+            echo \"BUCKET_IMAGE_NAME=${{ secrets.BUCKET_IMAGE_NAME }}\" >> .env.docker && \
             echo \"SUPABASE_URL=${{ secrets.SUPABASE_URL }}\" >> .env.docker && \
             echo \"SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}\" >> .env.docker"
 
@@ -98,7 +101,10 @@ jobs:
             sed -i 's|POSTGRES_DB|${{ secrets.POSTGRES_DB }}|g' docker-compose.yml && \
             sed -i 's|POSTGRES_DATA_DIR|${{ secrets.POSTGRES_DATA_DIR }}|g' docker-compose.yml && \
             sed -i 's|PORTAINER_DATA_DIR|${{ secrets.PORTAINER_DATA_DIR }}|g' docker-compose.yml && \
-            sed -i 's|SECRET_DIR|${{ secrets.SECRET_DIR }}|g' docker-compose.yml"
+            sed -i 's|SECRET_DIR|${{ secrets.SECRET_DIR }}|g' docker-compose.yml && \
+            sed -i 's|PORTAINER_SSL_CERT|${{ secrets.PORTAINER_SSL_CERT }}|g' docker-compose.yml && \
+            sed -i 's|PORTAINER_SSL_KEY|${{ secrets.PORTAINER_SSL_KEY }}|g' docker-compose.yml && \
+            sed -i 's|LOG_DIR|${{ secrets.LOG_DIR }}|g' docker-compose.yml"
 
       - name: Deploy with Docker
         run: |

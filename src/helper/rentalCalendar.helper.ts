@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { getOAuth2Client, isAuthenticated } from './authGoogle';
+import logger from '../config/logger';
 export const calendarEntretienId: string =
   process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!;
 export const calendarRentalId: string = process.env.GOOGLE_CALENDAR_RENTAL_ID!;
@@ -52,8 +53,11 @@ export async function createEvent(
   calendarId: string,
   attendeesEmails?: string[],
 ) {
+  logger.info(
+    `Creating event ${eventDetails.summary} on calendar ${calendarId}`,
+  );
   const calendar = getGgCalendar();
-  const response = await calendar.events.insert({
+  const insertData = {
     calendarId,
     requestBody: {
       attendees: attendeesEmails?.map((email) => ({ email })),
@@ -68,7 +72,10 @@ export async function createEvent(
         timeZone: 'Europe/Paris',
       },
     },
-  });
+  };
+  logger.debug(`Event details: ${JSON.stringify(insertData, null, 2)}`);
+  const response = await calendar.events.insert(insertData);
+  logger.info(`Event created: ${response.data.id}`);
   return response.data.id; // Return the created event ID
 }
 
