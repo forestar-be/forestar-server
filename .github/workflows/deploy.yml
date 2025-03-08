@@ -66,7 +66,7 @@ jobs:
             echo \"POSTGRES_DB=${{ secrets.POSTGRES_DB }}\" >> .env.docker && \
             echo \"DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@db:5432/${{ secrets.POSTGRES_DB }}?schema=public\" >> .env.docker && \
             echo \"# Application configuration\" >> .env.docker && \
-            echo \"FRONTEND_URL=${{ secrets.FRONTEND_URL }}\" >> .env.docker && \
+            echo \"FRONTEND_URL_TO_PING=${{ secrets.FRONTEND_URL_TO_PING }}\" >> .env.docker && \
             echo \"API_URL=${{ secrets.API_URL }}\" >> .env.docker && \
             echo \"TO_EMAIL=${{ secrets.TO_EMAIL }}\" >> .env.docker && \
             echo \"AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}\" >> .env.docker && \
