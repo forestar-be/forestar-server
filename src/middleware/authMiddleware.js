@@ -1,6 +1,6 @@
 const { verify, decode } = require('jsonwebtoken');
 const logger = require('../config/logger');
-
+const { stringifyIfPossible } = require('../helper/common.helper');
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
@@ -38,8 +38,10 @@ function authenticateToken(req, res, next) {
 
   verify(token, getKey(role), (err, user) => {
     if (err) {
-      logger.error(err);
-      return res.sendStatus(403);
+      logger.error(stringifyIfPossible(err));
+      return res.status(403).send({
+        message: err?.message || 'Erreur lors de la vérification du token',
+      });
     }
     req.user = user;
     req.isAdmin = role === 'ADMIN';

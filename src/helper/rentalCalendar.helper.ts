@@ -32,15 +32,19 @@ const getGgCalendar = () => {
   });
 };
 
-const getEventDate = (date: Date) => {
-  return date
-    .toLocaleString('fr-FR', {
-      timeZone: 'Europe/Paris',
-    })
-    .split(' ')[0]
-    .split('/')
-    .reverse()
-    .join('-');
+const getEventDate = (date: Date, isFullDay?: boolean) => {
+  if (isFullDay) {
+    const dateSplit = date
+      .toLocaleString('fr-FR', {
+        timeZone: 'Europe/Paris',
+      })
+      .split(' ');
+
+    const dateString = dateSplit[0];
+    const dataFormated = dateString.split('/').reverse().join('-'); //
+    return dataFormated;
+  }
+  return date.toISOString();
 };
 
 export async function createEvent(
@@ -52,6 +56,7 @@ export async function createEvent(
   },
   calendarId: string,
   attendeesEmails?: string[],
+  isFullDay = true,
 ) {
   logger.info(
     `Creating event ${eventDetails.summary} on calendar ${calendarId}`,
@@ -64,11 +69,17 @@ export async function createEvent(
       summary: eventDetails.summary,
       description: eventDetails.description,
       start: {
-        date: getEventDate(eventDetails.start),
+        [isFullDay ? 'date' : 'dateTime']: getEventDate(
+          eventDetails.start,
+          isFullDay,
+        ),
         timeZone: 'Europe/Paris',
       },
       end: {
-        date: getEventDate(eventDetails.end),
+        [isFullDay ? 'date' : 'dateTime']: getEventDate(
+          eventDetails.end,
+          isFullDay,
+        ),
         timeZone: 'Europe/Paris',
       },
     },
@@ -89,6 +100,7 @@ export async function updateEvent(
   }>,
   calendarId: string,
   attendeesEmails?: string[],
+  isFullDay = true,
 ) {
   const calendar = getGgCalendar();
   await calendar.events.patch({
@@ -99,10 +111,14 @@ export async function updateEvent(
       summary: updates.summary,
       description: updates.description,
       start: {
-        date: updates.start ? getEventDate(updates.start) : undefined,
+        [isFullDay ? 'date' : 'dateTime']: updates.start
+          ? getEventDate(updates.start, isFullDay)
+          : undefined,
       },
       end: {
-        date: updates.end ? getEventDate(updates.end) : undefined,
+        [isFullDay ? 'date' : 'dateTime']: updates.end
+          ? getEventDate(updates.end, isFullDay)
+          : undefined,
       },
     },
   });

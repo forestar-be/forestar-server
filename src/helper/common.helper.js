@@ -11,7 +11,16 @@ const formatPriceNumberToFrenchFormatStr = (number) => {
   });
 };
 
+const stringifyIfPossible = (obj) => {
+  try {
+    return JSON.stringify(obj);
+  } catch (error) {
+    return String(obj);
+  }
+};
+
 module.exports = {
   generateUniqueString,
   formatPriceNumberToFrenchFormatStr,
+  stringifyIfPossible,
 };

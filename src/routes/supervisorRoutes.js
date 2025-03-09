@@ -1,4 +1,9 @@
 import { sendEmail } from '../helper/mailer';
+import {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+} from '../helper/rentalCalendar.helper';
 
 const express = require('express');
 const multer = require('multer');
@@ -16,6 +21,11 @@ const { getImageUrl } = require('../helper/images.helper');
 const { deleteFile, saveFile } = require('../helper/file.helper');
 
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
+const CALENDAR_ID_PHONE_CALLBACKS = process.env.CALENDAR_ID_PHONE_CALLBACKS;
+
+if (!CALENDAR_ID_PHONE_CALLBACKS) {
+  throw new Error('CALENDAR_ID_PHONE_CALLBACKS is not defined');
+}
 
 // POST /machine-repairs
 router.post(
@@ -744,5 +754,306 @@ router.delete(
     res.json(robotType);
   }),
 );
+
+// ===== Routes pour la gestion des rappels téléphoniques =====
+
+// Récupérer tous les rappels téléphoniques
+router.get(
+  '/phone-callbacks',
+  asyncHandler(async (req, res) => {
+    // Extract query parameters
+    const {
+      sortBy = 'createdAt', // default sorting by createdAt
+      sortOrder = 'desc', // default sort order
+      page,
+      itemsPerPage,
+      completed,
+    } = req.query;
+
+    // Set up pagination
+    const skip = page ? (parseInt(page) - 1) * parseInt(itemsPerPage) : null;
+    const take = itemsPerPage ? parseInt(itemsPerPage) : null;
+
+    // Set up filter
+    const filter = {};
+    if (completed !== undefined) {
+      filter.completed = completed === 'true';
+    }
+
+    // Fetch filtered, paginated, and sorted data
+    const callbacks = await prisma.phoneCallback.findMany({
+      where: filter,
+      orderBy: { [sortBy]: sortOrder }, // Apply sorting
+      ...(skip && { skip }), // Apply pagination
+      ...(take && { take }), // Apply pagination
+    });
+
+    // Get total count for pagination metadata
+    const totalCount = await prisma.phoneCallback.count({
+      where: filter,
+    });
+
+    // Return data with pagination info
+    res.json({
+      data: callbacks,
+      pagination: {
+        totalItems: totalCount,
+        totalPages: Math.ceil(totalCount / take) || 1,
+        currentPage: parseInt(page) || 1,
+        itemsPerPage: take || totalCount,
+      },
+    });
+  }),
+);
+
+// Créer un nouveau rappel téléphonique
+router.post(
+  '/phone-callbacks',
+  asyncHandler(async (req, res) => {
+    const { phoneNumber, clientName, reason, description, responsiblePerson } =
+      req.body;
+
+    // Validation des données
+    if (
+      !phoneNumber ||
+      !clientName ||
+      !reason ||
+      !description ||
+      !responsiblePerson
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'Tous les champs sont obligatoires.' });
+    }
+
+    // Utiliser une transaction Prisma pour garantir l'atomicité des opérations
+    const newCallback = await prisma.$transaction(async (tx) => {
+      // Créer l'entrée dans la base de données
+      let callback = await tx.phoneCallback.create({
+        data: {
+          phoneNumber,
+          clientName,
+          reason,
+          description,
+          responsiblePerson,
+          completed: false,
+        },
+      });
+
+      // Créer une date de début à partir de la date actuelle
+      const startDate = new Date();
+      // Par défaut, prévoir 30 minutes pour le rappel
+      const endDate = new Date(startDate.getTime() + 30 * 60000);
+
+      // Créer un titre pour l'événement
+      const summary = `Rappel: ${clientName} - ${getReasonText(reason)}`;
+      // Créer une description pour l'événement
+      const eventDescription = `
+Rappel téléphonique pour ${clientName}
+Numéro: ${phoneNumber}
+Raison: ${getReasonText(reason)}
+Description: ${description}
+Responsable: ${responsiblePerson}
+ID Rappel: ${callback.id}
+        `;
+
+      // Créer l'événement dans le calendrier
+      const eventDetails = {
+        summary,
+        description: eventDescription,
+        start: startDate,
+        end: endDate,
+      };
+
+      // Créer l'événement et récupérer l'ID
+      const eventId = await createEvent(
+        eventDetails,
+        CALENDAR_ID_PHONE_CALLBACKS,
+        [],
+        false,
+      );
+
+      // Mettre à jour le callback avec l'ID de l'événement
+      callback = await tx.phoneCallback.update({
+        where: { id: callback.id },
+        data: { eventId: eventId },
+      });
+
+      return callback;
+    });
+
+    res.status(201).json(newCallback);
+  }),
+);
+
+// Récupérer un rappel téléphonique spécifique
+router.get(
+  '/phone-callbacks/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const callback = await prisma.phoneCallback.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!callback) {
+      return res
+        .status(404)
+        .json({ message: 'Rappel téléphonique non trouvé.' });
+    }
+
+    res.json(callback);
+  }),
+);
+
+// Mettre à jour un rappel téléphonique
+router.put(
+  '/phone-callbacks/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const {
+      phoneNumber,
+      clientName,
+      reason,
+      description,
+      responsiblePerson,
+      completed,
+    } = req.body;
+
+    try {
+      // Vérifier si le rappel existe
+      const existingCallback = await prisma.phoneCallback.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!existingCallback) {
+        return res
+          .status(404)
+          .json({ message: 'Rappel téléphonique non trouvé.' });
+      }
+
+      // Mettre à jour
+      const updatedCallback = await prisma.phoneCallback.update({
+        where: { id: parseInt(id) },
+        data: {
+          phoneNumber,
+          clientName,
+          reason,
+          description,
+          responsiblePerson,
+          completed,
+        },
+      });
+
+      // Mettre à jour l'événement dans l'agenda si un eventId existe
+      if (updatedCallback.eventId) {
+        // Créer un titre pour l'événement
+        const summary = `Rappel: ${clientName} - ${getReasonText(reason)}`;
+        // Créer une description pour l'événement
+        const eventDescription = `
+Rappel téléphonique pour ${clientName}
+Numéro: ${phoneNumber}
+Raison: ${getReasonText(reason)}
+Description: ${description}
+Responsable: ${responsiblePerson}
+ID Rappel: ${updatedCallback.id}
+Statut: ${completed ? 'Terminé' : 'À faire'}
+        `;
+
+        // Mettre à jour l'événement avec les nouvelles informations
+        const updates = {
+          summary,
+          description: eventDescription,
+        };
+
+        try {
+          await updateEvent(
+            updatedCallback.eventId,
+            updates,
+            CALENDAR_ID_PHONE_CALLBACKS,
+            [],
+            false,
+          );
+
+          // Si le rappel est marqué comme terminé, on pourrait changer la couleur de l'événement
+          // ou ajouter un préfixe au titre (ex: "[TERMINÉ] Rappel...")
+        } catch (error) {
+          logger.error(
+            `Erreur lors de la mise à jour de l'événement dans l'agenda`,
+            error,
+          );
+        }
+      }
+
+      res.json(updatedCallback);
+    } catch (error) {
+      logger.error(
+        'Erreur lors de la mise à jour du rappel téléphonique',
+        error,
+      );
+      res.status(500).json({
+        message: 'Erreur lors de la mise à jour du rappel téléphonique',
+      });
+    }
+  }),
+);
+
+// Supprimer un rappel téléphonique
+router.delete(
+  '/phone-callbacks/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    // Utiliser une transaction Prisma
+    return await prisma.$transaction(async (tx) => {
+      // Vérifier si le rappel existe
+      const existingCallback = await tx.phoneCallback.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!existingCallback) {
+        return res
+          .status(404)
+          .json({ message: 'Rappel téléphonique non trouvé.' });
+      }
+
+      // Supprimer l'événement du calendrier si un eventId existe
+      if (existingCallback.eventId) {
+        try {
+          await deleteEvent(
+            existingCallback.eventId,
+            CALENDAR_ID_PHONE_CALLBACKS,
+          );
+        } catch (error) {
+          logger.error(
+            `Erreur lors de la suppression de l'événement dans l'agenda ${existingCallback.eventId}`,
+            error,
+          );
+        }
+      }
+
+      // Supprimer
+      await tx.phoneCallback.delete({
+        where: { id: parseInt(id) },
+      });
+
+      return res.sendStatus(204);
+    });
+  }),
+);
+
+// Fonction utilitaire pour obtenir le texte de la raison
+function getReasonText(reason) {
+  switch (reason) {
+    case 'warranty':
+      return 'Garantie';
+    case 'delivery':
+      return 'Livraison';
+    case 'rental':
+      return 'Location';
+    case 'other':
+    default:
+      return 'Autre';
+  }
+}
 
 module.exports = router;

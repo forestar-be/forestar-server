@@ -94,7 +94,8 @@ jobs:
             echo \"BUCKET_IMAGE_NAME=${{ secrets.BUCKET_IMAGE_NAME }}\" >> .env.docker && \
             echo \"IMAGES_SECRET_KEY=${{ secrets.IMAGES_SECRET_KEY }}\" >> .env.docker && \
             echo \"IMAGES_BASE_DIR=${{ secrets.IMAGES_BASE_DIR }}\" >> .env.docker && \
-            echo \"PUBLIC_BUCKET_NAMES=${{ secrets.PUBLIC_BUCKET_NAMES }}\" >> .env.docker"
+            echo \"PUBLIC_BUCKET_NAMES=${{ secrets.PUBLIC_BUCKET_NAMES }}\" >> .env.docker && \
+            echo \"CALENDAR_ID_PHONE_CALLBACKS=${{ secrets.CALENDAR_ID_PHONE_CALLBACKS }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
@@ -115,7 +116,8 @@ jobs:
           ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
             docker-compose down && \
             docker-compose build --no-cache && \
-            docker-compose up -d"
+            docker-compose up -d && \
+            docker image prune"
 
       - name: Check deployment status
         run: |

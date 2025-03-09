@@ -154,6 +154,18 @@ model ConfigRentalManagement {
   createdAt DateTime @default(now())
 }
 
+model PhoneCallback {
+  id              Int      @id @default(autoincrement())
+  phoneNumber     String
+  clientName      String
+  reason          String
+  description     String
+  responsiblePerson String
+  createdAt       DateTime @default(now())
+  eventId         String? 
+  completed       Boolean  @default(false)
+}
+
 view MachineRentedView {
   id                           Int              @unique
   name                         String?
