@@ -757,6 +757,23 @@ router.delete(
 
 // ===== Routes pour la gestion des rappels téléphoniques =====
 
+// Récupérer tous les rappels téléphoniques sans pagination/filtres pour traitement côté client
+router.get(
+  '/phone-callbacks/all',
+  asyncHandler(async (req, res) => {
+    try {
+      const allCallbacks = await prisma.phoneCallback.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ data: allCallbacks });
+    } catch (error) {
+      console.error('Error fetching all callbacks:', error);
+      res.status(500).json({ error: 'Failed to fetch callbacks' });
+    }
+  }),
+);
+
 // Récupérer tous les rappels téléphoniques
 router.get(
   '/phone-callbacks',
