@@ -42,6 +42,9 @@ export function getEventRentalDescription(
   lines.push(
     `Prix de la location: ${formatPriceNumberToFrenchFormatStr(getRentalPrice(machineRental, machineRented, priceShipping))}.`,
   );
+  lines.push(`Adresse: ${machineRental.clientAddress}`);
+  lines.push(`Code postal: ${machineRental.clientPostal}`);
+  lines.push(`Ville: ${machineRental.clientCity}`);
   return lines.join('\n');
 }
 

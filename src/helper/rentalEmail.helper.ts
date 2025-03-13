@@ -20,11 +20,11 @@ const templateRentalNotification = fs.readFileSync(
  * Generate email content for a rental notification.
  */
 export function generateRentalNotificationEmailContent(
-  rental: any,
+  rental: MachineRentalView & { machineRented: MachineRentedView | null },
   priceShipping: number,
 ): string {
   return templateRentalNotification
-    .replace(/{{machine_name}}/g, rental.machineRented.name)
+    .replace(/{{machine_name}}/g, rental.machineRented?.name ?? 'Inconnu')
     .replace(
       /{{rental_start_date}}/g,
       new Date(rental.rentalDate).toLocaleDateString('fr-FR'),
@@ -37,16 +37,21 @@ export function generateRentalNotificationEmailContent(
     )
     .replace(
       /{{deposit}}/g,
-      formatPriceNumberToFrenchFormatStr(rental.machineRented.deposit),
+      formatPriceNumberToFrenchFormatStr(rental.machineRented?.deposit ?? 0),
     )
     .replace(
       /{{rental_price}}/g,
       formatPriceNumberToFrenchFormatStr(
-        getRentalPrice(rental, rental.machineRented, priceShipping),
+        rental.machineRented
+          ? getRentalPrice(rental, rental.machineRented, priceShipping)
+          : 0,
       ),
     )
     .replace(/{{deposit_paid}}/g, rental.depositToPay ? 'Oui' : 'Non')
-    .replace(/{{rental_paid}}/g, rental.paid ? 'Oui' : 'Non');
+    .replace(/{{rental_paid}}/g, rental.paid ? 'Oui' : 'Non')
+    .replace(/{{delivery_address}}/g, rental.clientAddress ?? 'Inconnu')
+    .replace(/{{delivery_zip_code}}/g, rental.clientPostal ?? 'Inconnu')
+    .replace(/{{delivery_city}}/g, rental.clientCity ?? 'Inconnu');
 }
 
 /**
@@ -59,7 +64,10 @@ export async function sendRentalNotificationEmail(
   logger.info(
     `Sending rental notification email for rental ${rental.id} to ${rental.guests}`,
   );
-  const emailContent = generateRentalNotificationEmailContent(rental,priceShipping);
+  const emailContent = generateRentalNotificationEmailContent(
+    rental,
+    priceShipping,
+  );
   const emailOptions = {
     to: rental.guests,
     subject: `Notification de location pour la machine ${rental.machineRented?.name}`,
