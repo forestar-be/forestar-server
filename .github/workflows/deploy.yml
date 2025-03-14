@@ -117,7 +117,7 @@ jobs:
             docker-compose down && \
             docker-compose build --no-cache && \
             docker-compose up -d && \
-            docker image prune"
+            docker image prune -f"
 
       - name: Check deployment status
         run: |

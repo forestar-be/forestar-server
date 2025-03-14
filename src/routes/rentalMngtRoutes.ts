@@ -494,9 +494,10 @@ rentalMngtRoutes.patch(
       | MachineRentalView
       | { errorKey: string; message: string } = await prisma.$transaction(
       async (prisma) => {
-        const existingRental = await prisma.machineRental.findUnique({
-          where: { id: idParsed },
-        });
+        const existingRental = await getMachineRentalView(
+          idParsed,
+          false,
+        )(prisma);
         if (!existingRental) throw new Error('Rental not found');
 
         if (data.rentalDate || data.returnDate) {
@@ -525,31 +526,29 @@ rentalMngtRoutes.patch(
           data: { ...data },
         });
         const updatedRental = await getMachineRentalView(idParsed)(prisma);
-        if (
-          data.rentalDate ||
-          data.returnDate ||
-          data.guests ||
-          data.depositToPay ||
-          data.paid
-        ) {
-          const priceShipping = await prisma.configRentalManagement.findUnique({
-            where: { key: 'Prix livraison' },
-          });
-          await updateEvent(
-            updatedRental.eventId,
-            {
-              ...(data.rentalDate && { start: new Date(data.rentalDate) }),
-              ...(data.returnDate && { end: new Date(data.returnDate) }),
-              description: getEventRentalDescription(
-                updatedRental,
-                updatedRental.machineRented!,
-                Number(priceShipping?.value) || 0,
-              ),
-            },
-            calendarRentalId,
-            updatedRental.guests,
-          );
-        }
+
+        // Update the event
+        const priceShipping = await prisma.configRentalManagement.findUnique({
+          where: { key: 'Prix livraison' },
+        });
+        await updateEvent(
+          updatedRental.eventId,
+          {
+            ...(updatedRental.rentalDate && {
+              start: new Date(updatedRental.rentalDate),
+            }),
+            ...(updatedRental.returnDate && {
+              end: new Date(updatedRental.returnDate),
+            }),
+            description: getEventRentalDescription(
+              updatedRental,
+              updatedRental.machineRented!,
+              Number(priceShipping?.value) || 0,
+            ),
+          },
+          calendarRentalId,
+          updatedRental.guests,
+        );
 
         // check if new guests are added by comparing the new guests with the old guests
         // send notification only to the new guests
