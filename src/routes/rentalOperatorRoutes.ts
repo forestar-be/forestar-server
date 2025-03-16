@@ -6,6 +6,7 @@ import prisma from '../helper/prisma';
 import {
   getAllMachineRentalView,
   getMachineRentalView,
+  getRentalPrice,
   isRentalDateOverlapExisting,
 } from '../helper/machineRental.helper';
 import { getMachineRentedView } from '../helper/machineRented.helper';
@@ -15,6 +16,8 @@ import { getFileFromDrive, uploadFileToDrive } from '../helper/ggdrive';
 import { doLogin } from '../helper/auth.helper';
 import dayjs from 'dayjs';
 import { generateRentalAgreementEmailContent } from '../helper/rentalAgreement.helper';
+import { MachineRentedView } from '@prisma/client';
+import { MachineRentalView } from '@prisma/client';
 
 const rentalOperatorRoutes = express.Router();
 
@@ -39,11 +42,24 @@ rentalOperatorRoutes.get(
   '/machine-rental/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const machineRental = await getMachineRentalView(parseInt(id))(prisma);
+    const machineRental: MachineRentalView & {
+      machineRented: MachineRentedView | null;
+      totalPrice?: number;
+    } = await getMachineRentalView(parseInt(id))(prisma);
 
     if (!machineRental) {
       return res.status(404).json({ message: 'Machine rental not found' });
     }
+
+    const priceShipping = await prisma.configRentalManagement.findUnique({
+      where: { key: 'Prix livraison' },
+    });
+
+    machineRental.totalPrice = getRentalPrice(
+      machineRental,
+      machineRental.machineRented!,
+      Number(priceShipping?.value) || 0,
+    );
 
     res.json(machineRental);
   }),
