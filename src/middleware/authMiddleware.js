@@ -5,6 +5,18 @@ const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
+const RENTAL_OPERATOR_SECRET_KEY = process.env.RENTAL_OPERATOR_SECRET_KEY;
+
+// check if all keys are set
+if (
+  !SUPERVISOR_SECRET_KEY ||
+  !OPERATOR_SECRET_KEY ||
+  !ADMIN_SECRET_KEY ||
+  !RENTAL_MANAGER_SECRET_KEY ||
+  !RENTAL_OPERATOR_SECRET_KEY
+) {
+  throw new Error('All keys must be set');
+}
 
 const getKey = (role) => {
   switch (role) {
@@ -16,6 +28,8 @@ const getKey = (role) => {
       return OPERATOR_SECRET_KEY;
     case 'ADMIN':
       return ADMIN_SECRET_KEY;
+    case 'RENTAL_OPERATOR':
+      return RENTAL_OPERATOR_SECRET_KEY;
     default:
       return null;
   }

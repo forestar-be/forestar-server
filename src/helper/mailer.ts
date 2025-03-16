@@ -13,6 +13,10 @@ if (!process.env.EMAIL_PASS) {
   throw new Error('EMAIL_PASS is not defined');
 }
 
+if (!process.env.REPLY_TO) {
+  throw new Error('REPLY_TO is not defined');
+}
+
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE,
   auth: {
@@ -58,7 +62,7 @@ export const sendEmail = async ({
     subject,
     html,
     attachments,
-    replyTo,
+    replyTo: replyTo || process.env.REPLY_TO,
   });
 
   lastSentTime = currentTime;

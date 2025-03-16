@@ -4,6 +4,7 @@ import { initMaintenanceReminderCron } from './helper/maintenanceReminder';
 require('dotenv').config();
 
 import rentalMngtRoutes from './routes/rentalMngtRoutes';
+import rentalOperatorRoutes from './routes/rentalOperatorRoutes';
 import { initRefreshTokenCron } from './helper/authGoogle';
 import authenticateImageAccess from './middleware/imageAuthMiddleware';
 import path from 'path';
@@ -82,6 +83,7 @@ app.use('/operator', authMiddleware, operatorRoutes);
 app.use('/supervisor', authMiddleware, supervisorRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
 app.use('/rental-mngt', authMiddleware, rentalMngtRoutes);
+app.use('/rental-operator', authMiddleware, rentalOperatorRoutes);
 app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 
 // Error-handling middleware

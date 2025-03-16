@@ -103,3 +103,31 @@ export function getMachineRentalView(
     return { ...machineRental, machineRented };
   };
 }
+
+export function getAllMachineRentalView(includeMachineRented: boolean = true) {
+  return async (
+    prisma: Omit<PrismaClient, runtime.ITXClientDenyList>,
+  ): Promise<
+    (MachineRentalView & { machineRented?: MachineRentedView | null })[]
+  > => {
+    const machineRentals = await prisma.machineRentalView.findMany({
+      orderBy: {
+        rentalDate: 'asc',
+      },
+    });
+    if (includeMachineRented) {
+      const machineRentalsWithMachineRented: (MachineRentalView & {
+        machineRented: MachineRentedView | null;
+      })[] = await Promise.all(
+        machineRentals.map(async (rental) => {
+          const machineRented = await prisma.machineRentedView.findUnique({
+            where: { id: rental.machineRentedId },
+          });
+          return { ...rental, machineRented };
+        }),
+      );
+      return machineRentalsWithMachineRented;
+    }
+    return machineRentals;
+  };
+}

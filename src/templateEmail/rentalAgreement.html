@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contrat de Location</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 600px;
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        margin: auto;
+      }
+      .banner {
+        background: linear-gradient(90deg, #e63946, #457b9d);
+        padding: 15px;
+        text-align: center;
+        color: white;
+        font-size: 1.5em;
+        font-weight: bold;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+      }
+      h1,
+      h2 {
+        color: #333;
+      }
+      p {
+        color: #555;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 0.9em;
+        color: #777;
+      }
+      a {
+        color: #457b9d;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="banner">Forestar</div>
+      <h2>Contrat de Location</h2>
+      <p>Bonjour {{client_first_name}},</p>
+      <p>
+        Veuillez trouver ci-joint votre contrat de location pour la machine
+        {{machine_name}}.
+      </p>
+      <p>
+        Ce document contient tous les termes et conditions relatifs à votre
+        location.
+      </p>
+      <p>
+        Si vous avez des questions concernant ce contrat, n'hésitez pas à nous
+        contacter.
+      </p>
+      <p>
+        Nous vous remercions pour votre confiance et restons à votre
+        disposition.
+      </p>
+      <p>Cordialement,</p>
+      <p>L'équipe Forestar</p>
+      <div class="footer">
+        <p>Ce message est généré automatiquement.</p>
+      </div>
+    </div>
+  </body>
+</html>

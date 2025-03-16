@@ -113,23 +113,24 @@ model MachineRented {
 }
 
 model MachineRental {
-  id              Int           @id @default(autoincrement())
-  machineRentedId Int
-  rentalDate      DateTime
-  returnDate      DateTime?
-  clientAddress   String        @default("")
-  clientCity      String        @default("")
-  clientEmail     String        @default("")
-  clientFirstName String        @default("")
-  clientLastName  String        @default("")
-  clientPhone     String        @default("")
-  clientPostal    String        @default("")
-  paid            Boolean       @default(false)
-  guests          String[]      @default([])
-  eventId         String
-  with_shipping   Boolean       @default(false)
-  depositToPay    Boolean       @default(false)
-  machineRented   MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
+  id                  Int           @id @default(autoincrement())
+  machineRentedId     Int
+  rentalDate          DateTime
+  returnDate          DateTime?
+  clientAddress       String        @default("")
+  clientCity          String        @default("")
+  clientEmail         String        @default("")
+  clientFirstName     String        @default("")
+  clientLastName      String        @default("")
+  clientPhone         String        @default("")
+  clientPostal        String        @default("")
+  paid                Boolean       @default(false)
+  guests              String[]      @default([])
+  eventId             String
+  with_shipping       Boolean       @default(false)
+  depositToPay        Boolean       @default(false)
+  finalTermsPdfId     String?
+  machineRented       MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
 model MachineRentedPart {
@@ -200,6 +201,7 @@ view MachineRentalView {
   eventId         String
   with_shipping   Boolean
   depositToPay    Boolean?
+  finalTermsPdfId String?
 }
 
 enum Role {
@@ -207,6 +209,7 @@ enum Role {
   SUPERVISOR
   ADMIN
   RENTAL_MANAGER
+  RENTAL_OPERATOR
 }
 
 enum MaintenanceType {

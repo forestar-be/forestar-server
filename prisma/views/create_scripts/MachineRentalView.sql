@@ -12,6 +12,7 @@ SELECT
   mr."clientPhone",
   mr."clientPostal",
   mr.paid,
+  mr."finalTermsPdfId",
   CASE
     WHEN (
       (mr.with_shipping = TRUE)

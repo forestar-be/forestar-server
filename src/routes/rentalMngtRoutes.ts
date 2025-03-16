@@ -35,6 +35,7 @@ import {
   MachineRented,
   MachineRentedView,
 } from '@prisma/client';
+import { getFileFromDrive } from '../helper/ggdrive';
 const rentalMngtRoutes = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -688,6 +689,29 @@ rentalMngtRoutes.patch(
       data: { value },
     });
     res.json(updatedConfig);
+  }),
+);
+
+// Get rental agreement of a machine rental
+rentalMngtRoutes.get(
+  '/machine-rental/:id/rental-agreement',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const machineRental = await getMachineRentalView(parseInt(id), false)(prisma);
+
+    if (!machineRental) {
+      return res.status(404).json({ message: 'Machine rental not found' });
+    }
+
+    if (!machineRental.finalTermsPdfId) {
+      return res.status(404).json({ message: 'Rental agreement not found' });
+    }
+
+    const { fileBuffer } = await getFileFromDrive(
+      machineRental.finalTermsPdfId,
+    );
+
+    res.status(200).send(fileBuffer);
   }),
 );
 

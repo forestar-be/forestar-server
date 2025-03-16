@@ -156,7 +156,8 @@ export const getOAuth2Client = () => oAuth2Client;
 
 export const initRefreshTokenCron = () => {
   logger.info('Starting token refresh cron job');
-  cron.schedule('0 0 * * *', async () => {
+  // Run every 30 minutes to ensure token stays valid
+  cron.schedule('*/30 * * * *', async () => {
     logger.info('Checking token validity');
 
     // Force a token refresh if we have a refresh token

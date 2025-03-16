@@ -95,7 +95,9 @@ jobs:
             echo \"IMAGES_SECRET_KEY=${{ secrets.IMAGES_SECRET_KEY }}\" >> .env.docker && \
             echo \"IMAGES_BASE_DIR=${{ secrets.IMAGES_BASE_DIR }}\" >> .env.docker && \
             echo \"PUBLIC_BUCKET_NAMES=${{ secrets.PUBLIC_BUCKET_NAMES }}\" >> .env.docker && \
-            echo \"CALENDAR_ID_PHONE_CALLBACKS=${{ secrets.CALENDAR_ID_PHONE_CALLBACKS }}\" >> .env.docker"
+            echo \"CALENDAR_ID_PHONE_CALLBACKS=${{ secrets.CALENDAR_ID_PHONE_CALLBACKS }}\" >> .env.docker && \
+            echo \"DRIVE_FOLDER_ID_RENTAL_AGREEMENT=${{ secrets.DRIVE_FOLDER_ID_RENTAL_AGREEMENT }}\" >> .env.docker && \
+            echo \"RENTAL_OPERATOR_SECRET_KEY=${{ secrets.RENTAL_OPERATOR_SECRET_KEY }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
