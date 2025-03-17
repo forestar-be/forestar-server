@@ -130,6 +130,7 @@ model MachineRental {
   with_shipping       Boolean       @default(false)
   depositToPay        Boolean       @default(false)
   finalTermsPdfId     String?
+  createdAt           DateTime      @default(now())
   machineRented       MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
@@ -202,6 +203,7 @@ view MachineRentalView {
   with_shipping   Boolean
   depositToPay    Boolean?
   finalTermsPdfId String?
+  createdAt       DateTime @db.Timestamp(6) 
 }
 
 enum Role {
