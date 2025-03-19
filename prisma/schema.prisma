@@ -206,6 +206,15 @@ view MachineRentalView {
   createdAt       DateTime @db.Timestamp(6) 
 }
 
+model RentalTerms {
+  id        Int             @id @default(autoincrement())
+  content   String
+  type      RentalTermType
+  order     Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
 enum Role {
   OPERATOR
   SUPERVISOR
@@ -217,4 +226,11 @@ enum Role {
 enum MaintenanceType {
   BY_DAY
   BY_NB_RENTAL
+}
+
+enum RentalTermType {
+  TITLE
+  SUBTITLE
+  SUBTITLE2
+  PARAGRAPH
 }

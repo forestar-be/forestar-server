@@ -213,6 +213,191 @@ rentalOperatorRoutes.post(
   }),
 );
 
+// Get all rental terms
+rentalOperatorRoutes.get(
+  '/rental-terms',
+  asyncHandler(async (req, res) => {
+    const terms = await prisma.rentalTerms.findMany({
+      orderBy: {
+        order: 'asc',
+      },
+    });
+    res.json(terms);
+  }),
+);
+
+// Add a new rental term
+rentalOperatorRoutes.post(
+  '/rental-terms',
+  asyncHandler(async (req, res) => {
+    const { content, type, order } = req.body;
+
+    // Validate input
+    if (!content || !type || order === undefined) {
+      return res
+        .status(400)
+        .json({ message: 'Content, type, and order are required' });
+    }
+
+    // If order is specified, shift all items with equal or higher order
+    if (order !== undefined) {
+      await prisma.rentalTerms.updateMany({
+        where: {
+          order: {
+            gte: order,
+          },
+        },
+        data: {
+          order: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    const newTerm = await prisma.rentalTerms.create({
+      data: {
+        content,
+        type,
+        order,
+      },
+    });
+
+    res.status(201).json(newTerm);
+  }),
+);
+
+// Update a rental term
+rentalOperatorRoutes.patch(
+  '/rental-terms/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { content, type, order } = req.body;
+
+    // Get the current term
+    const currentTerm = await prisma.rentalTerms.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!currentTerm) {
+      return res.status(404).json({ message: 'Term not found' });
+    }
+
+    // Handle order changes if needed
+    if (order !== undefined && order !== currentTerm.order) {
+      if (order > currentTerm.order) {
+        // Moving down - decrement items in between
+        await prisma.rentalTerms.updateMany({
+          where: {
+            order: {
+              gt: currentTerm.order,
+              lte: order,
+            },
+          },
+          data: {
+            order: {
+              decrement: 1,
+            },
+          },
+        });
+      } else {
+        // Moving up - increment items in between
+        await prisma.rentalTerms.updateMany({
+          where: {
+            order: {
+              gte: order,
+              lt: currentTerm.order,
+            },
+          },
+          data: {
+            order: {
+              increment: 1,
+            },
+          },
+        });
+      }
+    }
+
+    // Update the term
+    const updatedTerm = await prisma.rentalTerms.update({
+      where: { id: parseInt(id) },
+      data: {
+        content: content !== undefined ? content : undefined,
+        type: type !== undefined ? type : undefined,
+        order: order !== undefined ? order : undefined,
+      },
+    });
+
+    res.json(updatedTerm);
+  }),
+);
+
+// Delete a rental term
+rentalOperatorRoutes.delete(
+  '/rental-terms/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Get the term to delete
+    const termToDelete = await prisma.rentalTerms.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!termToDelete) {
+      return res.status(404).json({ message: 'Term not found' });
+    }
+
+    // Delete the term
+    await prisma.rentalTerms.delete({
+      where: { id: parseInt(id) },
+    });
+
+    // Reorder remaining terms
+    await prisma.rentalTerms.updateMany({
+      where: {
+        order: {
+          gt: termToDelete.order,
+        },
+      },
+      data: {
+        order: {
+          decrement: 1,
+        },
+      },
+    });
+
+    res.status(204).send();
+  }),
+);
+
+// Reorder rental terms
+rentalOperatorRoutes.post(
+  '/rental-terms/reorder',
+  asyncHandler(async (req, res) => {
+    const { termIds } = req.body;
+
+    if (!Array.isArray(termIds)) {
+      return res.status(400).json({ message: 'termIds array is required' });
+    }
+
+    // Update order in transaction
+    await prisma.$transaction(
+      termIds.map((id, index) =>
+        prisma.rentalTerms.update({
+          where: { id: parseInt(id.toString()) },
+          data: { order: index },
+        }),
+      ),
+    );
+
+    const updatedTerms = await prisma.rentalTerms.findMany({
+      orderBy: { order: 'asc' },
+    });
+
+    res.json(updatedTerms);
+  }),
+);
+
 const RENTAL_OPERATOR_SECRET_KEY = process.env.RENTAL_OPERATOR_SECRET_KEY;
 
 rentalOperatorRoutes.post(
