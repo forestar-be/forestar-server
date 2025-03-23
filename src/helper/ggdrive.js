@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
-const path = require('path');
 const { Readable } = require('stream');
+const logger = require('../config/logger');
 if (!process.env.KEY_FILE) {
   throw new Error('KEY_FILE environment variable is required');
 }
@@ -13,9 +13,23 @@ const drive = google.drive({
   }),
 });
 
+// check connection to drive
+const checkDriveConnection = async () => {
+  const response = await drive.files.list({
+    q: 'mimeType = "application/pdf"',
+  });
+  logger.info('Drive connection successful');
+  return response;
+};
+
+checkDriveConnection().catch((error) => {
+  logger.error('Error checking drive connection:', error);
+  process.exit(1);
+});
+
 async function uploadFileToDrive(fileBuffer, fileName, mimeType, folderKey) {
   let folderId = process.env.DRIVE_FOLDER_ID;
-
+  logger.info(`Uploading file to Google Drive: ${fileName}`);
   if (folderKey) {
     folderId = process.env[`DRIVE_FOLDER_ID_${folderKey}`];
 
@@ -56,6 +70,7 @@ async function uploadFileToDrive(fileBuffer, fileName, mimeType, folderKey) {
  */
 async function getFileFromDrive(fileId) {
   try {
+    logger.info(`Getting file from Google Drive: ${fileId}`);
     // Get the file metadata first
     const fileMetadata = await drive.files.get({
       fileId: fileId,
@@ -77,11 +92,29 @@ async function getFileFromDrive(fileId) {
     return {
       fileBuffer: Buffer.from(response.data),
       fileName: fileMetadata.data.name,
+      mimeType: fileMetadata.data.mimeType,
     };
   } catch (error) {
-    console.error('Error retrieving file from Google Drive:', error);
+    logger.error('Error retrieving file from Google Drive:', error);
     throw error;
   }
 }
 
-module.exports = { uploadFileToDrive, getFileFromDrive };
+/**
+ * Deletes a file from Google Drive by ID
+ * @param {string} fileId - The ID of the file in Google Drive to delete
+ * @returns {Promise<void>}
+ */
+async function deleteFileFromDrive(fileId) {
+  try {
+    logger.info(`Deleting file from Google Drive: ${fileId}`);
+    await drive.files.delete({
+      fileId: fileId,
+    });
+  } catch (error) {
+    logger.error('Error deleting file from Google Drive:', error);
+    throw error;
+  }
+}
+
+module.exports = { uploadFileToDrive, getFileFromDrive, deleteFileFromDrive };

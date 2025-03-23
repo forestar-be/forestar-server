@@ -168,6 +168,66 @@ model PhoneCallback {
   completed       Boolean  @default(false)
 }
 
+model RobotInventory {
+  id            Int      @id @default(autoincrement())
+  reference     String? 
+  name          String 
+  category      String? 
+  sellingPrice  Float?  
+  purchasePrice Float?  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  inventoryPlans InventoryPlan[]
+  purchaseOrders PurchaseOrder[]
+}
+
+model InventoryPlan {
+  id             Int      @id @default(autoincrement())
+  robotInventory RobotInventory @relation(fields: [robotInventoryId], references: [id], onDelete: Cascade)
+  robotInventoryId Int
+  year           Int      
+  month          Int      
+  quantity       Int      
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([robotInventoryId, year, month])
+}
+
+model PurchaseOrder {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Client information
+  clientFirstName  String
+  clientLastName   String
+  clientAddress    String
+  clientCity       String
+  clientPhone      String
+  deposit          Float    @default(0)
+  
+  // Robot details
+  robotInventoryId Int
+  robotInventory   RobotInventory @relation(fields: [robotInventoryId], references: [id])
+  
+  // Accessories
+  pluginType       String?
+  antennaType      String?
+  hasWire          Boolean   @default(false)
+  wireLength       Int?
+  shelterPrice     Float?
+  
+  // Installation
+  installationDate DateTime?
+  needsInstaller   Boolean   @default(false)
+  
+  // Files
+  orderPdfId       String?
+
+  eventId          String?   // For calendar integration
+}
+
 view MachineRentedView {
   id                           Int              @unique
   name                         String?

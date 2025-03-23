@@ -11,7 +11,7 @@ import {
   updateEvent,
   deleteEvent,
   calendarEntretienId,
-} from './rentalCalendar.helper';
+} from './calendar.helper';
 import { getRentalPrice } from './machineRental.helper';
 
 /**

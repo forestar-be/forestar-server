@@ -3,32 +3,41 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
-} from '../helper/rentalCalendar.helper';
+} from '../helper/calendar.helper';
 
 const express = require('express');
 const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const router = express.Router();
+const supervisorRoutes = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const { doLogin } = require('../helper/auth.helper');
 const logger = require('../config/logger');
 const asyncHandler = require('../helper/asyncHandler').default;
 
-const { uploadFileToDrive } = require('../helper/ggdrive');
+const {
+  uploadFileToDrive,
+  getFileFromDrive,
+  deleteFileFromDrive,
+} = require('../helper/ggdrive');
 const { generateUniqueString } = require('../helper/common.helper');
 const { getImageUrl } = require('../helper/images.helper');
 const { deleteFile, saveFile } = require('../helper/file.helper');
-
+const GOOGLE_CALENDAR_PURCHASE_ORDERS_ID =
+  process.env.GOOGLE_CALENDAR_PURCHASE_ORDERS_ID;
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 const CALENDAR_ID_PHONE_CALLBACKS = process.env.CALENDAR_ID_PHONE_CALLBACKS;
+
+if (!GOOGLE_CALENDAR_PURCHASE_ORDERS_ID) {
+  throw new Error('GOOGLE_CALENDAR_PURCHASE_ORDERS_ID is not defined');
+}
 
 if (!CALENDAR_ID_PHONE_CALLBACKS) {
   throw new Error('CALENDAR_ID_PHONE_CALLBACKS is not defined');
 }
 
 // POST /machine-repairs
-router.post(
+supervisorRoutes.post(
   '/machine-repairs',
   asyncHandler(async (req, res) => {
     // Extract query parameters
@@ -86,7 +95,7 @@ router.post(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/machine-repairs/:id',
   asyncHandler(async (req, res) => {
     logger.info(`Getting machine repair of id ${req.params.id}`);
@@ -129,7 +138,7 @@ router.get(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/machine-repairs/:id/image/:imageIndex',
   asyncHandler(async (req, res) => {
     const { id, imageIndex } = req.params;
@@ -182,7 +191,7 @@ router.delete(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/machine-repairs/:id/image',
   upload.single('image'),
   asyncHandler(async (req, res) => {
@@ -232,7 +241,7 @@ router.put(
   }),
 );
 
-router.patch(
+supervisorRoutes.patch(
   '/machine-repairs/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -301,7 +310,7 @@ router.patch(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/machine-repairs/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -350,7 +359,7 @@ router.delete(
   }),
 );
 
-router.post(
+supervisorRoutes.post(
   '/login',
   asyncHandler(async (req, res) => {
     const role = 'SUPERVISOR';
@@ -358,7 +367,7 @@ router.post(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/replaced-parts',
   asyncHandler(async (req, res) => {
     const replacedParts = await prisma.replacedParts.findMany();
@@ -366,7 +375,7 @@ router.get(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/replaced-parts',
   asyncHandler(async (req, res) => {
     const newReplacedParts = req.body;
@@ -442,7 +451,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/replaced-parts/:name',
   asyncHandler(async (req, res) => {
     const { name } = req.params;
@@ -458,7 +467,7 @@ router.delete(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/repairer_names',
   asyncHandler(async (req, res) => {
     const repairerNames = await prisma.repairer.findMany();
@@ -466,7 +475,7 @@ router.get(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/repairer_names',
   asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -478,7 +487,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/repairer_names/:name',
   asyncHandler(async (req, res) => {
     const { name } = req.params;
@@ -491,7 +500,7 @@ router.delete(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/brands',
   asyncHandler(async (req, res) => {
     const brands = await prisma.brand.findMany();
@@ -499,7 +508,7 @@ router.get(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/allConfig',
   asyncHandler(async (req, res) => {
     const [
@@ -530,7 +539,7 @@ router.get(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/config',
   asyncHandler(async (req, res) => {
     const config = await prisma.config.findMany();
@@ -538,7 +547,7 @@ router.get(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/config',
   asyncHandler(async (req, res) => {
     const config = req.body;
@@ -563,7 +572,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/config/:key',
   asyncHandler(async (req, res) => {
     const { key } = req.params;
@@ -576,7 +585,7 @@ router.delete(
   }),
 );
 
-router.patch(
+supervisorRoutes.patch(
   '/config/:key',
   asyncHandler(async (req, res) => {
     const { key } = req.params;
@@ -593,7 +602,7 @@ router.patch(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/brands',
   asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -605,7 +614,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/brands/:name',
   asyncHandler(async (req, res) => {
     const { name } = req.params;
@@ -618,7 +627,7 @@ router.delete(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/machine-repairs/drive/:id',
   upload.single('attachment'),
   asyncHandler(async (req, res) => {
@@ -641,13 +650,14 @@ router.put(
       req.file.buffer,
       fileName,
       mimeType,
+      'PURCHASE_ORDERS',
     );
 
     res.json(response);
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/machine-repairs/email/:id',
   upload.single('attachment'),
   asyncHandler(async (req, res) => {
@@ -687,7 +697,7 @@ router.put(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/machine_types',
   asyncHandler(async (req, res) => {
     const machineTypes = await prisma.machineType.findMany();
@@ -695,7 +705,7 @@ router.get(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/machine_types',
   asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -707,7 +717,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/machine_types/:name',
   asyncHandler(async (req, res) => {
     const { name } = req.params;
@@ -722,7 +732,7 @@ router.delete(
   }),
 );
 
-router.get(
+supervisorRoutes.get(
   '/robot-types',
   asyncHandler(async (req, res) => {
     const robotTypes = await prisma.robotType.findMany();
@@ -730,7 +740,7 @@ router.get(
   }),
 );
 
-router.put(
+supervisorRoutes.put(
   '/robot-types',
   asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -742,7 +752,7 @@ router.put(
   }),
 );
 
-router.delete(
+supervisorRoutes.delete(
   '/robot-types/:name',
   asyncHandler(async (req, res) => {
     const { name } = req.params;
@@ -758,7 +768,7 @@ router.delete(
 // ===== Routes pour la gestion des rappels téléphoniques =====
 
 // Récupérer tous les rappels téléphoniques sans pagination/filtres pour traitement côté client
-router.get(
+supervisorRoutes.get(
   '/phone-callbacks/all',
   asyncHandler(async (req, res) => {
     try {
@@ -775,7 +785,7 @@ router.get(
 );
 
 // Récupérer tous les rappels téléphoniques
-router.get(
+supervisorRoutes.get(
   '/phone-callbacks',
   asyncHandler(async (req, res) => {
     // Extract query parameters
@@ -824,7 +834,7 @@ router.get(
 );
 
 // Créer un nouveau rappel téléphonique
-router.post(
+supervisorRoutes.post(
   '/phone-callbacks',
   asyncHandler(async (req, res) => {
     const { phoneNumber, clientName, reason, description, responsiblePerson } =
@@ -904,7 +914,7 @@ ID Rappel: ${callback.id}
 );
 
 // Récupérer un rappel téléphonique spécifique
-router.get(
+supervisorRoutes.get(
   '/phone-callbacks/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -924,7 +934,7 @@ router.get(
 );
 
 // Mettre à jour un rappel téléphonique
-router.put(
+supervisorRoutes.put(
   '/phone-callbacks/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -1016,7 +1026,7 @@ Statut: ${completed ? 'Terminé' : 'À faire'}
 );
 
 // Supprimer un rappel téléphonique
-router.delete(
+supervisorRoutes.delete(
   '/phone-callbacks/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -1073,4 +1083,781 @@ function getReasonText(reason) {
   }
 }
 
-module.exports = router;
+// Récupérer tous les robots d'inventaire
+supervisorRoutes.get(
+  '/robot-inventory',
+  asyncHandler(async (req, res) => {
+    try {
+      const robots = await prisma.robotInventory.findMany({
+        orderBy: { name: 'asc' },
+        include: {
+          inventoryPlans: true,
+        },
+      });
+
+      res.json({ data: robots });
+    } catch (error) {
+      logger.error('Error fetching robot inventory:', error);
+      res.status(500).json({ error: 'Failed to fetch robot inventory' });
+    }
+  }),
+);
+
+// Créer un nouveau robot d'inventaire
+supervisorRoutes.post(
+  '/robot-inventory',
+  asyncHandler(async (req, res) => {
+    const { reference, name, category, sellingPrice, purchasePrice } = req.body;
+
+    // Validation de base
+    if (!name) {
+      return res
+        .status(400)
+        .json({ message: 'Le nom du robot est obligatoire.' });
+    }
+
+    try {
+      const robot = await prisma.robotInventory.create({
+        data: {
+          reference,
+          name,
+          category,
+          sellingPrice: sellingPrice ? parseFloat(sellingPrice) : null,
+          purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
+        },
+      });
+
+      res.status(201).json(robot);
+    } catch (error) {
+      logger.error('Error creating robot inventory:', error);
+      res.status(500).json({ error: 'Failed to create robot inventory item' });
+    }
+  }),
+);
+
+// Récupérer un robot d'inventaire spécifique
+supervisorRoutes.get(
+  '/robot-inventory/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const robot = await prisma.robotInventory.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          inventoryPlans: true,
+        },
+      });
+
+      if (!robot) {
+        return res.status(404).json({ message: 'Robot non trouvé.' });
+      }
+
+      res.json(robot);
+    } catch (error) {
+      logger.error('Error fetching robot inventory item:', error);
+      res.status(500).json({ error: 'Failed to fetch robot inventory item' });
+    }
+  }),
+);
+
+// Mettre à jour un robot d'inventaire
+supervisorRoutes.put(
+  '/robot-inventory/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { reference, name, category, sellingPrice, purchasePrice } = req.body;
+
+    // Validation de base
+    if (!name) {
+      return res
+        .status(400)
+        .json({ message: 'Le nom du robot est obligatoire.' });
+    }
+
+    try {
+      const robot = await prisma.robotInventory.update({
+        where: { id: parseInt(id) },
+        data: {
+          reference,
+          name,
+          category,
+          sellingPrice: sellingPrice ? parseFloat(sellingPrice) : null,
+          purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
+        },
+      });
+
+      res.json(robot);
+    } catch (error) {
+      logger.error('Error updating robot inventory:', error);
+      res.status(500).json({ error: 'Failed to update robot inventory item' });
+    }
+  }),
+);
+
+// Supprimer un robot d'inventaire
+supervisorRoutes.delete(
+  '/robot-inventory/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await prisma.robotInventory.delete({
+        where: { id: parseInt(id) },
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      logger.error('Error deleting robot inventory:', error);
+      res.status(500).json({ error: 'Failed to delete robot inventory item' });
+    }
+  }),
+);
+
+// Récupérer les plans d'inventaire filtrés par année et mois
+supervisorRoutes.get(
+  '/inventory-plans',
+  asyncHandler(async (req, res) => {
+    const { year, month } = req.query;
+
+    const filter = {};
+    if (year) filter.year = parseInt(year);
+    if (month) filter.month = parseInt(month);
+
+    try {
+      const plans = await prisma.inventoryPlan.findMany({
+        where: filter,
+        include: {
+          robotInventory: true,
+        },
+        orderBy: {
+          robotInventory: {
+            name: 'asc',
+          },
+        },
+      });
+
+      res.json({ data: plans });
+    } catch (error) {
+      logger.error('Error fetching inventory plans:', error);
+      res.status(500).json({ error: 'Failed to fetch inventory plans' });
+    }
+  }),
+);
+
+// Récupérer les plans d'inventaire groupés par année et mois
+supervisorRoutes.get(
+  '/inventory-summary',
+  asyncHandler(async (req, res) => {
+    try {
+      const robots = await prisma.robotInventory.findMany({
+        include: {
+          inventoryPlans: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      // Obtenir toutes les années et mois uniques disponibles
+      const yearsMonths = await prisma.inventoryPlan.groupBy({
+        by: ['year', 'month'],
+        orderBy: [{ year: 'asc' }, { month: 'asc' }],
+      });
+
+      res.json({
+        robots,
+        periods: yearsMonths,
+      });
+    } catch (error) {
+      logger.error('Error fetching inventory summary:', error);
+      res.status(500).json({ error: 'Failed to fetch inventory summary' });
+    }
+  }),
+);
+
+// Créer ou mettre à jour un plan d'inventaire
+supervisorRoutes.post(
+  '/inventory-plans',
+  asyncHandler(async (req, res) => {
+    const { robotInventoryId, year, month, quantity } = req.body;
+
+    // Validation de base
+    if (!robotInventoryId || !year || !month || quantity === undefined) {
+      return res.status(400).json({
+        message:
+          'Tous les champs (robotInventoryId, year, month, quantity) sont obligatoires.',
+      });
+    }
+
+    try {
+      // Upsert: Create if doesn't exist, update if exists
+      const plan = await prisma.inventoryPlan.upsert({
+        where: {
+          robotInventoryId_year_month: {
+            robotInventoryId: parseInt(robotInventoryId),
+            year: parseInt(year),
+            month: parseInt(month),
+          },
+        },
+        update: {
+          quantity: parseInt(quantity),
+        },
+        create: {
+          robotInventoryId: parseInt(robotInventoryId),
+          year: parseInt(year),
+          month: parseInt(month),
+          quantity: parseInt(quantity),
+        },
+      });
+
+      res.json(plan);
+    } catch (error) {
+      logger.error('Error creating/updating inventory plan:', error);
+      res.status(500).json({ error: 'Failed to create/update inventory plan' });
+    }
+  }),
+);
+
+// Supprimer un plan d'inventaire
+supervisorRoutes.delete(
+  '/inventory-plans/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await prisma.inventoryPlan.delete({
+        where: { id: parseInt(id) },
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      logger.error('Error deleting inventory plan:', error);
+      res.status(500).json({ error: 'Failed to delete inventory plan' });
+    }
+  }),
+);
+
+// Mettre à jour plusieurs plans d'inventaire en une seule requête
+supervisorRoutes.post(
+  '/inventory-plans/batch',
+  asyncHandler(async (req, res) => {
+    const { plans } = req.body;
+
+    if (!Array.isArray(plans)) {
+      return res.status(400).json({
+        message: 'Les plans doivent être fournis sous forme de tableau.',
+      });
+    }
+
+    try {
+      const result = await prisma.$transaction(
+        plans.map((plan) => {
+          return prisma.inventoryPlan.upsert({
+            where: {
+              robotInventoryId_year_month: {
+                robotInventoryId: parseInt(plan.robotInventoryId),
+                year: parseInt(plan.year),
+                month: parseInt(plan.month),
+              },
+            },
+            update: {
+              quantity: parseInt(plan.quantity),
+            },
+            create: {
+              robotInventoryId: parseInt(plan.robotInventoryId),
+              year: parseInt(plan.year),
+              month: parseInt(plan.month),
+              quantity: parseInt(plan.quantity),
+            },
+          });
+        }),
+      );
+
+      res.json({
+        message: 'Plans mis à jour avec succès',
+        count: result.length,
+      });
+    } catch (error) {
+      logger.error('Error updating inventory plans in batch:', error);
+      res.status(500).json({ error: 'Failed to update inventory plans' });
+    }
+  }),
+);
+
+// Add this helper function to handle calendar event creation and updates
+const createOrUpdateCalendarEventPurchaseOrder = async (eventData) => {
+  const {
+    eventId,
+    summary,
+    description,
+    startDate,
+    endDate,
+    attendees = [],
+  } = eventData;
+
+  if (eventId) {
+    // Update existing event
+    await updateEvent(
+      eventId,
+      {
+        summary,
+        description,
+        start: startDate,
+        end: endDate,
+      },
+      GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
+      attendees,
+      true,
+    );
+    return eventId;
+  } else {
+    // Create new event
+    return await createEvent(
+      {
+        summary,
+        description,
+        start: startDate,
+        end: endDate,
+      },
+      GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
+      attendees,
+      true,
+    );
+  }
+};
+
+// Helper function to process purchase order creation and updates
+const processPurchaseOrder = async (req, res, isUpdate = false) => {
+  let orderData = req.body;
+  const { id } = req.params || {};
+
+  // If the request contains a file and orderData as JSON string
+  if (req.file && req.body.orderData) {
+    orderData = JSON.parse(req.body.orderData);
+  }
+
+  // Get existing order if update
+  let existingOrder = null;
+  if (isUpdate) {
+    existingOrder = await prisma.purchaseOrder.findUnique({
+      where: { id: parseInt(id) },
+      include: { robotInventory: true },
+    });
+
+    if (!existingOrder) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+  }
+
+  const {
+    clientFirstName,
+    clientLastName,
+    clientAddress,
+    clientCity,
+    clientPhone,
+    deposit,
+    robotInventoryId,
+    pluginType,
+    antennaType,
+    hasWire,
+    wireLength,
+    shelterPrice,
+    installationDate,
+    needsInstaller,
+  } = orderData;
+
+  // Validate required fields for new orders
+  if (!isUpdate && (!clientFirstName || !clientLastName || !robotInventoryId)) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  // For new orders, verify robot exists and check inventory
+  if (!isUpdate) {
+    // Check if robot exists
+    const robot = await prisma.robotInventory.findUnique({
+      where: { id: robotInventoryId },
+    });
+
+    if (!robot) {
+      return res.status(400).json({ message: 'Robot not found' });
+    }
+
+    // Check if there are robots available for the current month
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+
+    const inventoryPlan = await prisma.inventoryPlan.findUnique({
+      where: {
+        robotInventoryId_year_month: {
+          robotInventoryId: robotInventoryId,
+          year: currentYear,
+          month: currentMonth,
+        },
+      },
+    });
+
+    // Return error if no inventory plan exists or quantity is 0
+    if (!inventoryPlan || inventoryPlan.quantity <= 0) {
+      return res.status(400).json({
+        message:
+          "Aucun robot disponible pour ce mois-ci. Veuillez vérifier le plan d'inventaire.",
+      });
+    }
+  }
+
+  // Prepare data for create/update
+  const orderDataForDb = isUpdate
+    ? {
+        clientFirstName: clientFirstName || existingOrder.clientFirstName,
+        clientLastName: clientLastName || existingOrder.clientLastName,
+        clientAddress:
+          clientAddress !== undefined
+            ? clientAddress
+            : existingOrder.clientAddress,
+        clientCity:
+          clientCity !== undefined ? clientCity : existingOrder.clientCity,
+        clientPhone:
+          clientPhone !== undefined ? clientPhone : existingOrder.clientPhone,
+        deposit: deposit !== undefined ? deposit : existingOrder.deposit,
+        robotInventoryId: robotInventoryId || existingOrder.robotInventoryId,
+        pluginType:
+          pluginType !== undefined ? pluginType : existingOrder.pluginType,
+        antennaType:
+          antennaType !== undefined ? antennaType : existingOrder.antennaType,
+        hasWire: hasWire !== undefined ? hasWire : existingOrder.hasWire,
+        wireLength:
+          wireLength !== undefined ? wireLength : existingOrder.wireLength,
+        shelterPrice:
+          shelterPrice !== undefined
+            ? shelterPrice
+            : existingOrder.shelterPrice,
+        installationDate:
+          installationDate !== undefined
+            ? installationDate
+              ? new Date(installationDate)
+              : null
+            : existingOrder.installationDate,
+        needsInstaller:
+          needsInstaller !== undefined
+            ? needsInstaller
+            : existingOrder.needsInstaller,
+      }
+    : {
+        clientFirstName,
+        clientLastName,
+        clientAddress: clientAddress || '',
+        clientCity: clientCity || '',
+        clientPhone: clientPhone || '',
+        deposit: deposit || 0,
+        robotInventoryId,
+        pluginType,
+        antennaType,
+        hasWire: hasWire || false,
+        wireLength: wireLength || null,
+        shelterPrice: shelterPrice || null,
+        installationDate: installationDate ? new Date(installationDate) : null,
+        needsInstaller: needsInstaller || false,
+      };
+
+  // Create or update purchase order using transaction to ensure atomicity
+  const result = await prisma.$transaction(async (tx) => {
+    // Create or update the purchase order
+    let purchaseOrder;
+
+    if (isUpdate) {
+      purchaseOrder = await tx.purchaseOrder.update({
+        where: { id: parseInt(id) },
+        data: orderDataForDb,
+        include: { robotInventory: true },
+      });
+    } else {
+      purchaseOrder = await tx.purchaseOrder.create({
+        data: orderDataForDb,
+        include: { robotInventory: true },
+      });
+
+      // Update inventory only on creation
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      const inventoryPlan = await tx.inventoryPlan.findUnique({
+        where: {
+          robotInventoryId_year_month: {
+            robotInventoryId: robotInventoryId,
+            year: currentYear,
+            month: currentMonth,
+          },
+        },
+      });
+
+      await tx.inventoryPlan.update({
+        where: {
+          robotInventoryId_year_month: {
+            robotInventoryId: robotInventoryId,
+            year: currentYear,
+            month: currentMonth,
+          },
+        },
+        data: {
+          quantity: inventoryPlan.quantity - 1,
+        },
+      });
+    }
+
+    // Upload PDF to Google Drive if provided
+    if (req.file) {
+      if (isUpdate && purchaseOrder.orderPdfId) {
+        await deleteFileFromDrive(purchaseOrder.orderPdfId);
+      }
+
+      const { id: fileId } = await uploadFileToDrive(
+        req.file.buffer,
+        `bon_commande${purchaseOrder.id}.pdf`,
+        'application/pdf',
+        'PURCHASE_ORDERS',
+      );
+
+      // Update the purchase order with the PDF ID
+      await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { orderPdfId: fileId },
+      });
+
+      purchaseOrder.orderPdfId = fileId;
+    }
+
+    // Handle calendar event
+    if (isUpdate) {
+      // Update/create/delete event if needed
+      if (installationDate !== undefined) {
+        if (installationDate) {
+          const eventId = await createOrUpdateCalendarEventPurchaseOrder({
+            eventId: existingOrder.eventId,
+            summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+            description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+            location: purchaseOrder.clientAddress,
+            startDate: new Date(installationDate),
+            endDate: new Date(installationDate),
+            attendees: [],
+          });
+
+          if (eventId && !existingOrder.eventId) {
+            await tx.purchaseOrder.update({
+              where: { id: purchaseOrder.id },
+              data: { eventId },
+            });
+            purchaseOrder.eventId = eventId;
+          }
+        } else if (existingOrder.eventId) {
+          // If installation date removed, delete event
+          await deleteEvent(
+            existingOrder.eventId,
+            GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
+          );
+          await tx.purchaseOrder.update({
+            where: { id: purchaseOrder.id },
+            data: { eventId: null },
+          });
+          purchaseOrder.eventId = null;
+        }
+      }
+    } else if (installationDate) {
+      // For new orders, create event if installationDate is provided
+      const eventId = await createOrUpdateCalendarEventPurchaseOrder({
+        summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+        description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+        location: purchaseOrder.clientAddress,
+        startDate: new Date(installationDate),
+        endDate: new Date(installationDate),
+        attendees: [],
+      });
+
+      await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { eventId },
+      });
+      purchaseOrder.eventId = eventId;
+    }
+
+    return purchaseOrder;
+  });
+
+  return res.status(isUpdate ? 200 : 201).json(result);
+};
+
+// Purchase Orders routes
+supervisorRoutes.get(
+  '/purchase-orders',
+  asyncHandler(async (req, res) => {
+    const purchaseOrders = await prisma.purchaseOrder.findMany({
+      include: {
+        robotInventory: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json({ data: purchaseOrders });
+  }),
+);
+
+supervisorRoutes.get(
+  '/purchase-orders/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const purchaseOrder = await prisma.purchaseOrder.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        robotInventory: true,
+      },
+    });
+
+    if (!purchaseOrder) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+
+    res.json(purchaseOrder);
+  }),
+);
+
+supervisorRoutes.post(
+  '/purchase-orders',
+  upload.single('pdf'),
+  asyncHandler(async (req, res) => {
+    // error if no file is provided
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file provided' });
+    }
+
+    return processPurchaseOrder(req, res, false);
+  }),
+);
+
+supervisorRoutes.put(
+  '/purchase-orders/:id',
+  upload.single('pdf'),
+  asyncHandler(async (req, res) => {
+    return processPurchaseOrder(req, res, true);
+  }),
+);
+
+supervisorRoutes.delete(
+  '/purchase-orders/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Check if purchase order exists
+    const existingOrder = await prisma.purchaseOrder.findUnique({
+      where: { id: parseInt(id) },
+      include: { robotInventory: true },
+    });
+
+    if (!existingOrder) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+
+    // Use transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      // Delete calendar event if exists
+      if (existingOrder.eventId) {
+        try {
+          await deleteEvent(
+            existingOrder.eventId,
+            GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
+          );
+        } catch (error) {
+          console.error('Failed to delete calendar event:', error);
+        }
+      }
+
+      // Delete file from Google Drive if exists
+      if (existingOrder.orderPdfId) {
+        try {
+          await deleteFileFromDrive(existingOrder.orderPdfId);
+        } catch (error) {
+          console.error('Failed to delete PDF from drive:', error);
+        }
+      }
+
+      // Get the creation date of the purchase order to determine the inventory period
+      const orderDate = new Date(existingOrder.createdAt);
+      const orderYear = orderDate.getFullYear();
+      const orderMonth = orderDate.getMonth() + 1; // JavaScript months are 0-indexed
+
+      // Find and update the inventory plan
+      const inventoryPlan = await tx.inventoryPlan.findUnique({
+        where: {
+          robotInventoryId_year_month: {
+            robotInventoryId: existingOrder.robotInventoryId,
+            year: orderYear,
+            month: orderMonth,
+          },
+        },
+      });
+
+      // If inventory plan exists, increase the quantity
+      if (inventoryPlan) {
+        await tx.inventoryPlan.update({
+          where: {
+            robotInventoryId_year_month: {
+              robotInventoryId: existingOrder.robotInventoryId,
+              year: orderYear,
+              month: orderMonth,
+            },
+          },
+          data: {
+            quantity: inventoryPlan.quantity + 1,
+          },
+        });
+      }
+
+      // Delete purchase order
+      await tx.purchaseOrder.delete({
+        where: { id: parseInt(id) },
+      });
+    });
+
+    res.status(204).send();
+  }),
+);
+
+// Get PDF for a purchase order
+supervisorRoutes.get(
+  '/purchase-orders/:id/pdf',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Check if purchase order exists
+    const existingOrder = await prisma.purchaseOrder.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingOrder || !existingOrder.orderPdfId) {
+      return res.status(404).json({ message: 'Purchase order PDF not found' });
+    }
+
+    try {
+      // Get file from Google Drive
+      const { fileBuffer, fileName, mimeType } = await getFileFromDrive(
+        existingOrder.orderPdfId,
+        'PURCHASE_ORDERS',
+      );
+
+      // Set response headers
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+
+      // Send file
+      res.send(fileBuffer);
+    } catch (error) {
+      console.error('Failed to get PDF from drive:', error);
+      res
+        .status(500)
+        .json({ message: 'Failed to get PDF', error: error.message });
+    }
+  }),
+);
+
+module.exports = supervisorRoutes;

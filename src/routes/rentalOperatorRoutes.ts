@@ -1,23 +1,18 @@
 import express from 'express';
 import asyncHandler from '../helper/asyncHandler';
 import multer from 'multer';
-import logger from '../config/logger';
 import prisma from '../helper/prisma';
 import {
   getAllMachineRentalView,
   getMachineRentalView,
   getRentalPrice,
-  isRentalDateOverlapExisting,
 } from '../helper/machineRental.helper';
-import { getMachineRentedView } from '../helper/machineRented.helper';
-import { generateUniqueString } from '../helper/common.helper';
 import { sendEmail } from '../helper/mailer';
 import { getFileFromDrive, uploadFileToDrive } from '../helper/ggdrive';
 import { doLogin } from '../helper/auth.helper';
 import dayjs from 'dayjs';
 import { generateRentalAgreementEmailContent } from '../helper/rentalAgreement.helper';
-import { MachineRentedView } from '@prisma/client';
-import { MachineRentalView } from '@prisma/client';
+import { MachineRentedView, MachineRentalView } from '@prisma/client';
 
 const rentalOperatorRoutes = express.Router();
 

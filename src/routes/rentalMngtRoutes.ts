@@ -14,7 +14,7 @@ import {
   createEvent,
   deleteEvent,
   updateEvent,
-} from '../helper/rentalCalendar.helper';
+} from '../helper/calendar.helper';
 
 import {
   getMachineRentedView,
@@ -27,7 +27,7 @@ import {
 import {
   getEventRentalDescription,
   updateCalendarEventMaintenance,
-} from '../helper/agenda.helper';
+} from '../helper/event.helper';
 import { sendRentalNotificationEmail } from '../helper/rentalEmail.helper';
 import {
   MachineRental,
@@ -697,7 +697,10 @@ rentalMngtRoutes.get(
   '/machine-rental/:id/rental-agreement',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const machineRental = await getMachineRentalView(parseInt(id), false)(prisma);
+    const machineRental = await getMachineRentalView(
+      parseInt(id),
+      false,
+    )(prisma);
 
     if (!machineRental) {
       return res.status(404).json({ message: 'Machine rental not found' });
