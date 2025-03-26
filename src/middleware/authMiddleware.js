@@ -35,6 +35,13 @@ const getKey = (role) => {
   }
 };
 
+const allowedRoutesByRole = {
+  SUPERVISOR: ['/supervisor', '/auth-google'],
+  RENTAL_MANAGER: ['/rental-mngt', '/auth-google'],
+  OPERATOR: ['/operator'],
+  RENTAL_OPERATOR: ['/rental-operator'],
+};
+
 function authenticateToken(req, res, next) {
   if (req.path === '/login') {
     return next();
@@ -49,6 +56,12 @@ function authenticateToken(req, res, next) {
   }
 
   const { role } = decode(token);
+
+  if (role !== 'ADMIN' && !allowedRoutesByRole[role].includes(req.baseUrl)) {
+    return res.status(403).send({
+      message: 'Non autorisé',
+    });
+  }
 
   verify(token, getKey(role), (err, user) => {
     if (err) {

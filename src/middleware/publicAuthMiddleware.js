@@ -3,7 +3,7 @@ const logger = require('../config/logger');
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 
 function authMiddleware(req, res, next) {
-  // do not require authentication for health check
+  // do not require authentication for health check or google callback
   if (req.path === '/health' || req.path === '/oauth/google/callback') {
     next();
     return;

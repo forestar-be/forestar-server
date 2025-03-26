@@ -1,15 +1,13 @@
-// Load environment variables
-import { initMaintenanceReminderCron } from './helper/maintenanceReminder';
-
 require('dotenv').config();
 
+import { initMaintenanceReminderCron } from './helper/maintenanceReminder';
 import rentalMngtRoutes from './routes/rentalMngtRoutes';
 import rentalOperatorRoutes from './routes/rentalOperatorRoutes';
 import { initRefreshTokenCron } from './helper/authGoogle';
 import authenticateImageAccess from './middleware/imageAuthMiddleware';
-import path from 'path';
 import fs from 'fs';
-
+import ggAuthMiddleware from './middleware/ggAuthMiddleware';
+import ggAuthRoutes from './routes/ggAuthRoutes';
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -59,14 +57,18 @@ app.use(bodyParser.json());
 
 // Middleware to log each request
 app.use((req, res, next) => {
-  res.on('finish', () => {
-    // do not log health check
-    if (req.path === '/health') {
-      return;
-    }
+  // do not log health check
+  if (req.path === '/health') {
+    return next();
+  }
 
+  const start = Date.now();
+  logger.info(`Starting request: ${req.method} ${req.originalUrl}...`);
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
     logger.info(
-      `${req.method} ${req.originalUrl} ${res.statusCode} - ${req.ip}`,
+      `${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`,
     );
   });
   next();
@@ -79,10 +81,11 @@ app.use(authenticateImageAccess);
 app.use('/images', express.static(IMAGES_BASE_DIR));
 
 // Routes
+app.use('/auth-google', authMiddleware, ggAuthRoutes);
 app.use('/operator', authMiddleware, operatorRoutes);
-app.use('/supervisor', authMiddleware, supervisorRoutes);
+app.use('/supervisor', [authMiddleware, ggAuthMiddleware], supervisorRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
-app.use('/rental-mngt', authMiddleware, rentalMngtRoutes);
+app.use('/rental-mngt', [authMiddleware, ggAuthMiddleware], rentalMngtRoutes);
 app.use('/rental-operator', authMiddleware, rentalOperatorRoutes);
 app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 
@@ -95,7 +98,7 @@ app.use((err, req, res, next) => {
 // Démarrage du serveur
 app.listen(port, () => {
   logger.info(`Serveur en écoute sur le port ${port}`);
-  initPingCron(); // useful to keep the servers awake
+  initPingCron();
   initMaintenanceReminderCron();
   initRefreshTokenCron();
 });

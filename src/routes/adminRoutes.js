@@ -3,11 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const router = express.Router();
 const { hashPassword } = require('../helper/auth.helper');
-const {
-  isAuthenticated,
-  getAuthUrl,
-  authenticate,
-} = require('../helper/authGoogle');
+const { isAuthenticated, getAuthUrl } = require('../helper/authGoogle');
 const asyncHandler = require('../helper/asyncHandler').default;
 
 router.get(
@@ -100,11 +96,13 @@ router.get(
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
+    const { redirect } = req.query;
+
     if (isAuthenticated()) {
       return res.status(200).json({ message: 'Déjà authentifié' });
     }
 
-    const url = getAuthUrl();
+    const url = getAuthUrl(redirect);
 
     res.status(200).json({ url });
   }),

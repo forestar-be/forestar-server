@@ -53,17 +53,22 @@ router.get('/health', (req, res) => {
 router.get(
   '/oauth/google/callback',
   asyncHandler(async (req, res) => {
-    const { code } = req.query;
+    const { code, state } = req.query;
+    const stateObj = JSON.parse(decodeURIComponent(state));
+
+    const urlRedirect = decodeURIComponent(stateObj.redirectUrl);
+
     if (!code) {
       return res.status(400).json({ message: 'Code manquant' });
     }
+
     if (isAuthenticated()) {
-      return res.status(200).json({ message: 'Déjà authentifié' });
+      res.redirect(urlRedirect);
     }
 
     await authenticate(code);
 
-    res.status(200).json({ message: 'Authentification réussie' });
+    res.redirect(urlRedirect);
   }),
 );
 

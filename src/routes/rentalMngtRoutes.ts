@@ -387,8 +387,7 @@ rentalMngtRoutes.put(
 
     if (isOverlapping) {
       return res.status(400).json({
-        errorKey: 'overlapping_rental',
-        message: 'Les dates de location sont déjà prises',
+        message: 'overlapping_rental',
       });
     }
 
@@ -491,10 +490,8 @@ rentalMngtRoutes.patch(
     const { id } = req.params;
     const idParsed = parseInt(id);
     const data: Partial<MachineRental> = req.body;
-    const updatedRental:
-      | MachineRentalView
-      | { errorKey: string; message: string } = await prisma.$transaction(
-      async (prisma) => {
+    const updatedRental: MachineRentalView | { errorKey: string } =
+      await prisma.$transaction(async (prisma) => {
         const existingRental = await getMachineRentalView(
           idParsed,
           false,
@@ -511,7 +508,6 @@ rentalMngtRoutes.patch(
           if (isOverlapping) {
             return {
               errorKey: 'overlapping_rental',
-              message: 'Les dates de location sont déjà prises',
             };
           }
         }
@@ -567,11 +563,10 @@ rentalMngtRoutes.patch(
         }
 
         return updatedRental;
-      },
-    );
+      });
 
     if ('errorKey' in updatedRental) {
-      return res.status(400).json(updatedRental);
+      return res.status(400).json({ message: updatedRental.errorKey });
     }
 
     res.json(updatedRental);
