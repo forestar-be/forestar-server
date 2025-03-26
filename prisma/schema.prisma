@@ -216,11 +216,14 @@ model PurchaseOrder {
   antennaType      String?
   hasWire          Boolean   @default(false)
   wireLength       Int?
+  shelterType      String?
   shelterPrice     Float?
+  hasAntennaSupport Boolean  @default(false)
   
   // Installation
   installationDate DateTime?
   needsInstaller   Boolean   @default(false)
+  installationNotes String?
   
   // Files
   orderPdfId       String?

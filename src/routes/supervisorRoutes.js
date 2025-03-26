@@ -650,7 +650,6 @@ supervisorRoutes.put(
       req.file.buffer,
       fileName,
       mimeType,
-      'PURCHASE_ORDERS',
     );
 
     res.json(response);
@@ -1460,9 +1459,12 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     antennaType,
     hasWire,
     wireLength,
+    shelterType,
     shelterPrice,
+    hasAntennaSupport,
     installationDate,
     needsInstaller,
+    installationNotes,
   } = orderData;
 
   // Validate required fields for new orders
@@ -1470,7 +1472,6 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  // For new orders, verify robot exists and check inventory
   if (!isUpdate) {
     // Check if robot exists
     const robot = await prisma.robotInventory.findUnique({
@@ -1479,29 +1480,6 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
 
     if (!robot) {
       return res.status(400).json({ message: 'Robot not found' });
-    }
-
-    // Check if there are robots available for the current month
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
-
-    const inventoryPlan = await prisma.inventoryPlan.findUnique({
-      where: {
-        robotInventoryId_year_month: {
-          robotInventoryId: robotInventoryId,
-          year: currentYear,
-          month: currentMonth,
-        },
-      },
-    });
-
-    // Return error if no inventory plan exists or quantity is 0
-    if (!inventoryPlan || inventoryPlan.quantity <= 0) {
-      return res.status(400).json({
-        message:
-          "Aucun robot disponible pour ce mois-ci. Veuillez vérifier le plan d'inventaire.",
-      });
     }
   }
 
@@ -1527,10 +1505,16 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         hasWire: hasWire !== undefined ? hasWire : existingOrder.hasWire,
         wireLength:
           wireLength !== undefined ? wireLength : existingOrder.wireLength,
+        shelterType:
+          shelterType !== undefined ? shelterType : existingOrder.shelterType,
         shelterPrice:
           shelterPrice !== undefined
             ? shelterPrice
             : existingOrder.shelterPrice,
+        hasAntennaSupport:
+          hasAntennaSupport !== undefined
+            ? hasAntennaSupport
+            : existingOrder.hasAntennaSupport,
         installationDate:
           installationDate !== undefined
             ? installationDate
@@ -1541,6 +1525,10 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           needsInstaller !== undefined
             ? needsInstaller
             : existingOrder.needsInstaller,
+        installationNotes:
+          installationNotes !== undefined
+            ? installationNotes
+            : existingOrder.installationNotes,
       }
     : {
         clientFirstName,
@@ -1554,9 +1542,12 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         antennaType,
         hasWire: hasWire || false,
         wireLength: wireLength || null,
+        shelterType: shelterType || null,
         shelterPrice: shelterPrice || null,
+        hasAntennaSupport: hasAntennaSupport || false,
         installationDate: installationDate ? new Date(installationDate) : null,
         needsInstaller: needsInstaller || false,
+        installationNotes: installationNotes || null,
       };
 
   // Create or update purchase order using transaction to ensure atomicity
@@ -1613,7 +1604,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
 
       const { id: fileId } = await uploadFileToDrive(
         req.file.buffer,
-        `bon_commande${purchaseOrder.id}.pdf`,
+        `bon_commande_${purchaseOrder.id}_${purchaseOrder.clientFirstName}_${purchaseOrder.clientLastName}.pdf`,
         'application/pdf',
         'PURCHASE_ORDERS',
       );
@@ -1726,11 +1717,6 @@ supervisorRoutes.post(
   '/purchase-orders',
   upload.single('pdf'),
   asyncHandler(async (req, res) => {
-    // error if no file is provided
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file provided' });
-    }
-
     return processPurchaseOrder(req, res, false);
   }),
 );

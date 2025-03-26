@@ -36,14 +36,9 @@ const oAuth2Client: OAuth2Client = new google.auth.OAuth2(
 );
 
 let authenticated = false;
-let expirationDate: number = 0;
 
 // Add token update event handler
 oAuth2Client.on('tokens', (tokens: Credentials) => {
-  if (tokens.expiry_date) {
-    expirationDate = tokens.expiry_date;
-  }
-
   if (tokens.refresh_token) {
     // Store the new tokens
     let existingTokens = {};
@@ -107,10 +102,6 @@ if (fs.existsSync(TOKEN_PATH)) {
       logger.info(
         'Found refresh token, attempting to refresh access token if needed',
       );
-    }
-
-    if (tokens.expiry_date) {
-      expirationDate = tokens.expiry_date;
     }
 
     verifyToken().then((isValid) => {
@@ -183,9 +174,6 @@ export const authenticate = async (code: string) => {
 };
 
 export const isAuthenticated = () => {
-  if (expirationDate && expirationDate < Date.now()) {
-    authenticated = false;
-  }
   return authenticated;
 };
 
@@ -193,8 +181,8 @@ export const getOAuth2Client = () => oAuth2Client;
 
 export const initRefreshTokenCron = () => {
   logger.info('Starting token refresh cron job');
-  // Run every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
+  // Run every 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
     try {
       logger.info('Checking token validity');
 
