@@ -1582,18 +1582,31 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         },
       });
 
-      await tx.inventoryPlan.update({
-        where: {
-          robotInventoryId_year_month: {
+      if (inventoryPlan) {
+        // If inventory plan exists, update it
+        await tx.inventoryPlan.update({
+          where: {
+            robotInventoryId_year_month: {
+              robotInventoryId: robotInventoryId,
+              year: currentYear,
+              month: currentMonth,
+            },
+          },
+          data: {
+            quantity: inventoryPlan.quantity - 1,
+          },
+        });
+      } else {
+        // If inventory plan doesn't exist, create it with quantity = -1
+        await tx.inventoryPlan.create({
+          data: {
             robotInventoryId: robotInventoryId,
             year: currentYear,
             month: currentMonth,
+            quantity: -1, // Start with -1 since we're selling one
           },
-        },
-        data: {
-          quantity: inventoryPlan.quantity - 1,
-        },
-      });
+        });
+      }
     }
 
     // Upload PDF to Google Drive if provided
