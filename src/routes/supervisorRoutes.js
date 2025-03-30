@@ -4,6 +4,13 @@ import {
   updateEvent,
   deleteEvent,
 } from '../helper/calendar.helper';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+
+// Initialize dayjs plugins
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const express = require('express');
 const multer = require('multer');
@@ -1228,6 +1235,8 @@ supervisorRoutes.get(
         where: filter,
         include: {
           robotInventory: true,
+          antenna: true,
+          plugin: true,
         },
         orderBy: {
           robotInventory: {
@@ -1439,7 +1448,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
   if (isUpdate) {
     existingOrder = await prisma.purchaseOrder.findUnique({
       where: { id: parseInt(id) },
-      include: { robotInventory: true },
+      include: { robotInventory: true, antenna: true, plugin: true },
     });
 
     if (!existingOrder) {
@@ -1455,8 +1464,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     clientPhone,
     deposit,
     robotInventoryId,
-    pluginType,
-    antennaType,
+    pluginInventoryId,
+    antennaInventoryId,
     hasWire,
     wireLength,
     shelterType,
@@ -1465,6 +1474,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     installationDate,
     needsInstaller,
     installationNotes,
+    hasAppointment,
+    isInstalled,
   } = orderData;
 
   // Validate required fields for new orders
@@ -1480,6 +1491,30 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
 
     if (!robot) {
       return res.status(400).json({ message: 'Robot not found' });
+    }
+
+    // Check if antenna exists if an ID is provided
+    if (antennaInventoryId) {
+      const antenna = await prisma.robotInventory.findUnique({
+        where: { id: antennaInventoryId },
+      });
+      if (!antenna || antenna.category !== 'ANTENNA') {
+        return res
+          .status(400)
+          .json({ message: 'Antenna not found or invalid category' });
+      }
+    }
+
+    // Check if plugin exists if an ID is provided
+    if (pluginInventoryId) {
+      const plugin = await prisma.robotInventory.findUnique({
+        where: { id: pluginInventoryId },
+      });
+      if (!plugin || plugin.category !== 'PLUGIN') {
+        return res
+          .status(400)
+          .json({ message: 'Plugin not found or invalid category' });
+      }
     }
   }
 
@@ -1498,10 +1533,14 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           clientPhone !== undefined ? clientPhone : existingOrder.clientPhone,
         deposit: deposit !== undefined ? deposit : existingOrder.deposit,
         robotInventoryId: robotInventoryId || existingOrder.robotInventoryId,
-        pluginType:
-          pluginType !== undefined ? pluginType : existingOrder.pluginType,
-        antennaType:
-          antennaType !== undefined ? antennaType : existingOrder.antennaType,
+        pluginInventoryId:
+          pluginInventoryId !== undefined
+            ? pluginInventoryId
+            : existingOrder.pluginInventoryId,
+        antennaInventoryId:
+          antennaInventoryId !== undefined
+            ? antennaInventoryId
+            : existingOrder.antennaInventoryId,
         hasWire: hasWire !== undefined ? hasWire : existingOrder.hasWire,
         wireLength:
           wireLength !== undefined ? wireLength : existingOrder.wireLength,
@@ -1529,6 +1568,12 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           installationNotes !== undefined
             ? installationNotes
             : existingOrder.installationNotes,
+        hasAppointment:
+          hasAppointment !== undefined
+            ? hasAppointment
+            : existingOrder.hasAppointment,
+        isInstalled:
+          isInstalled !== undefined ? isInstalled : existingOrder.isInstalled,
       }
     : {
         clientFirstName,
@@ -1538,8 +1583,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         clientPhone: clientPhone || '',
         deposit: deposit || 0,
         robotInventoryId,
-        pluginType,
-        antennaType,
+        pluginInventoryId,
+        antennaInventoryId,
         hasWire: hasWire || false,
         wireLength: wireLength || null,
         shelterType: shelterType || null,
@@ -1548,6 +1593,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         installationDate: installationDate ? new Date(installationDate) : null,
         needsInstaller: needsInstaller || false,
         installationNotes: installationNotes || null,
+        hasAppointment: hasAppointment || false,
+        isInstalled: isInstalled || false,
       };
 
   // Create or update purchase order using transaction to ensure atomicity
@@ -1559,12 +1606,12 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
       purchaseOrder = await tx.purchaseOrder.update({
         where: { id: parseInt(id) },
         data: orderDataForDb,
-        include: { robotInventory: true },
+        include: { robotInventory: true, antenna: true, plugin: true },
       });
     } else {
       purchaseOrder = await tx.purchaseOrder.create({
         data: orderDataForDb,
-        include: { robotInventory: true },
+        include: { robotInventory: true, antenna: true, plugin: true },
       });
 
       // Update inventory only on creation
@@ -1572,44 +1619,36 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
       const currentYear = currentDate.getFullYear();
       const currentMonth = currentDate.getMonth() + 1;
 
-      const inventoryPlan = await tx.inventoryPlan.findUnique({
-        where: {
-          robotInventoryId_year_month: {
-            robotInventoryId: robotInventoryId,
-            year: currentYear,
-            month: currentMonth,
-          },
-        },
-      });
+      // Update robot inventory
+      await updateInventoryForItem(
+        tx,
+        robotInventoryId,
+        currentYear,
+        currentMonth,
+      );
 
-      if (inventoryPlan) {
-        // If inventory plan exists, update it
-        await tx.inventoryPlan.update({
-          where: {
-            robotInventoryId_year_month: {
-              robotInventoryId: robotInventoryId,
-              year: currentYear,
-              month: currentMonth,
-            },
-          },
-          data: {
-            quantity: inventoryPlan.quantity - 1,
-          },
-        });
-      } else {
-        // If inventory plan doesn't exist, create it with quantity = -1
-        await tx.inventoryPlan.create({
-          data: {
-            robotInventoryId: robotInventoryId,
-            year: currentYear,
-            month: currentMonth,
-            quantity: -1, // Start with -1 since we're selling one
-          },
-        });
+      // Update antenna inventory if selected
+      if (antennaInventoryId) {
+        await updateInventoryForItem(
+          tx,
+          antennaInventoryId,
+          currentYear,
+          currentMonth,
+        );
+      }
+
+      // Update plugin inventory if selected
+      if (pluginInventoryId) {
+        await updateInventoryForItem(
+          tx,
+          pluginInventoryId,
+          currentYear,
+          currentMonth,
+        );
       }
     }
 
-    // Upload PDF to Google Drive if provided
+    // Handle PDF upload
     if (req.file) {
       if (isUpdate && purchaseOrder.orderPdfId) {
         await deleteFileFromDrive(purchaseOrder.orderPdfId);
@@ -1687,7 +1726,47 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     return purchaseOrder;
   });
 
-  return res.status(isUpdate ? 200 : 201).json(result);
+  // Return purchase order data
+  res.status(isUpdate ? 200 : 201).json(result);
+};
+
+// Helper function to update inventory for an item
+const updateInventoryForItem = async (tx, inventoryId, year, month) => {
+  const inventoryPlan = await tx.inventoryPlan.findUnique({
+    where: {
+      robotInventoryId_year_month: {
+        robotInventoryId: inventoryId,
+        year,
+        month,
+      },
+    },
+  });
+
+  if (inventoryPlan) {
+    // If inventory plan exists, update it
+    await tx.inventoryPlan.update({
+      where: {
+        robotInventoryId_year_month: {
+          robotInventoryId: inventoryId,
+          year,
+          month,
+        },
+      },
+      data: {
+        quantity: inventoryPlan.quantity - 1,
+      },
+    });
+  } else {
+    // If inventory plan doesn't exist, create it with quantity = -1
+    await tx.inventoryPlan.create({
+      data: {
+        robotInventoryId: inventoryId,
+        year,
+        month,
+        quantity: -1, // Start with -1 since we're selling one
+      },
+    });
+  }
 };
 
 // Purchase Orders routes
@@ -1697,6 +1776,8 @@ supervisorRoutes.get(
     const purchaseOrders = await prisma.purchaseOrder.findMany({
       include: {
         robotInventory: true,
+        antenna: true,
+        plugin: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -1715,6 +1796,8 @@ supervisorRoutes.get(
       where: { id: parseInt(id) },
       include: {
         robotInventory: true,
+        antenna: true,
+        plugin: true,
       },
     });
 
@@ -1750,7 +1833,7 @@ supervisorRoutes.delete(
     // Check if purchase order exists
     const existingOrder = await prisma.purchaseOrder.findUnique({
       where: { id: parseInt(id) },
-      include: { robotInventory: true },
+      include: { robotInventory: true, antenna: true, plugin: true },
     });
 
     if (!existingOrder) {
@@ -1785,31 +1868,32 @@ supervisorRoutes.delete(
       const orderYear = orderDate.getFullYear();
       const orderMonth = orderDate.getMonth() + 1; // JavaScript months are 0-indexed
 
-      // Find and update the inventory plan
-      const inventoryPlan = await tx.inventoryPlan.findUnique({
-        where: {
-          robotInventoryId_year_month: {
-            robotInventoryId: existingOrder.robotInventoryId,
-            year: orderYear,
-            month: orderMonth,
-          },
-        },
-      });
+      // Find and update the robot inventory plan
+      await restoreInventoryItem(
+        tx,
+        existingOrder.robotInventoryId,
+        orderYear,
+        orderMonth,
+      );
 
-      // If inventory plan exists, increase the quantity
-      if (inventoryPlan) {
-        await tx.inventoryPlan.update({
-          where: {
-            robotInventoryId_year_month: {
-              robotInventoryId: existingOrder.robotInventoryId,
-              year: orderYear,
-              month: orderMonth,
-            },
-          },
-          data: {
-            quantity: inventoryPlan.quantity + 1,
-          },
-        });
+      // Restore antenna inventory if exists
+      if (existingOrder.antennaInventoryId) {
+        await restoreInventoryItem(
+          tx,
+          existingOrder.antennaInventoryId,
+          orderYear,
+          orderMonth,
+        );
+      }
+
+      // Restore plugin inventory if exists
+      if (existingOrder.pluginInventoryId) {
+        await restoreInventoryItem(
+          tx,
+          existingOrder.pluginInventoryId,
+          orderYear,
+          orderMonth,
+        );
       }
 
       // Delete purchase order
@@ -1821,6 +1905,34 @@ supervisorRoutes.delete(
     res.status(204).send();
   }),
 );
+
+// Helper function to restore inventory item quantity
+const restoreInventoryItem = async (tx, inventoryId, year, month) => {
+  const inventoryPlan = await tx.inventoryPlan.findUnique({
+    where: {
+      robotInventoryId_year_month: {
+        robotInventoryId: inventoryId,
+        year,
+        month,
+      },
+    },
+  });
+
+  if (inventoryPlan) {
+    await tx.inventoryPlan.update({
+      where: {
+        robotInventoryId_year_month: {
+          robotInventoryId: inventoryId,
+          year,
+          month,
+        },
+      },
+      data: {
+        quantity: inventoryPlan.quantity + 1,
+      },
+    });
+  }
+};
 
 // Get PDF for a purchase order
 supervisorRoutes.get(
@@ -1855,6 +1967,44 @@ supervisorRoutes.get(
       res
         .status(500)
         .json({ message: 'Failed to get PDF', error: error.message });
+    }
+  }),
+);
+
+supervisorRoutes.patch(
+  '/purchase-orders/:id/status',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { hasAppointment, isInstalled } = req.body;
+
+    // Validate that at least one status field is provided
+    if (hasAppointment === undefined && isInstalled === undefined) {
+      return res.status(400).json({ message: 'No status fields provided' });
+    }
+
+    // Update only the provided status fields
+    const updateData = {};
+    if (hasAppointment !== undefined)
+      updateData.hasAppointment = hasAppointment;
+    if (isInstalled !== undefined) updateData.isInstalled = isInstalled;
+
+    try {
+      const updatedOrder = await prisma.purchaseOrder.update({
+        where: { id: parseInt(id) },
+        data: updateData,
+        include: {
+          robotInventory: true,
+          antenna: true,
+          plugin: true,
+        },
+      });
+
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error('Error updating purchase order status:', error);
+      res
+        .status(500)
+        .json({ message: 'Failed to update purchase order status' });
     }
   }),
 );

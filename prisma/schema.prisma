@@ -172,13 +172,15 @@ model RobotInventory {
   id            Int      @id @default(autoincrement())
   reference     String? 
   name          String 
-  category      String? 
+  category      InventoryCategory @default(ROBOT)
   sellingPrice  Float?  
   purchasePrice Float?  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   inventoryPlans InventoryPlan[]
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders PurchaseOrder[] @relation("RobotToPurchaseOrder")
+  purchaseOrdersAsPlugin PurchaseOrder[] @relation("PluginToPurchaseOrder")
+  purchaseOrdersAsAntenna PurchaseOrder[] @relation("AntennaToPurchaseOrder")
 }
 
 model InventoryPlan {
@@ -209,11 +211,13 @@ model PurchaseOrder {
   
   // Robot details
   robotInventoryId Int
-  robotInventory   RobotInventory @relation(fields: [robotInventoryId], references: [id])
+  robotInventory   RobotInventory @relation("RobotToPurchaseOrder", fields: [robotInventoryId], references: [id])
   
   // Accessories
-  pluginType       String?
-  antennaType      String?
+  pluginInventoryId Int?
+  antennaInventoryId Int?
+  plugin           RobotInventory? @relation("PluginToPurchaseOrder", fields: [pluginInventoryId], references: [id])
+  antenna          RobotInventory? @relation("AntennaToPurchaseOrder", fields: [antennaInventoryId], references: [id])
   hasWire          Boolean   @default(false)
   wireLength       Int?
   shelterType      String?
@@ -224,6 +228,10 @@ model PurchaseOrder {
   installationDate DateTime?
   needsInstaller   Boolean   @default(false)
   installationNotes String?
+  
+  // Status fields
+  hasAppointment   Boolean   @default(false)
+  isInstalled      Boolean   @default(false)
   
   // Files
   orderPdfId       String?
@@ -296,4 +304,10 @@ enum RentalTermType {
   SUBTITLE
   SUBTITLE2
   PARAGRAPH
+}
+
+enum InventoryCategory {
+  ROBOT
+  ANTENNA
+  PLUGIN
 }
