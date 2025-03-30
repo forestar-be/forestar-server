@@ -121,10 +121,15 @@ jobs:
           ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
             docker-compose down && \
             docker-compose build --no-cache && \
-            docker-compose up -d && \
-            docker image prune -f"
+            docker-compose up -d"
 
       - name: Check deployment status
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
             docker-compose ps"
+
+      - name: Clean up after deployment
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
+            docker system prune -af --volumes && \
+            docker builder prune -af"

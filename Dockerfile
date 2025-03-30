@@ -1,34 +1,61 @@
-FROM node:20
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package files first to leverage Docker cache
 COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
 
-# Install PostgreSQL client for database operations in entrypoint script
-RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
-
-# Copy the rest of the code, excluding node_modules (should be defined in .dockerignore)
-COPY . ./
-
-# Make sure bcrypt is properly rebuilt for this environment
-RUN npm rebuild bcrypt --build-from-source
+# Copy prisma schema for client generation
+COPY prisma ./prisma/
 
 # Generate Prisma client
 RUN npm run generate-prisma
 
+# Copy the rest of the code
+COPY . .
+
+# Rebuild bcrypt for this environment
+RUN npm rebuild bcrypt --build-from-source
+
 # Build the application with increased memory limit
 ENV NODE_OPTIONS="--max-old-space-size=1536"
-
 RUN npm run build
 
-# Expose the port your app runs on
+# Production stage
+FROM node:20-slim 
+
+WORKDIR /app
+
+# Install PostgreSQL client without unnecessary packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy production node_modules
+COPY --from=builder /app/node_modules /app/node_modules
+
+# Copy built application
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/prisma /app/prisma
+
+# Copy only necessary files
+COPY package*.json ./
+COPY .docker /app/.docker
+COPY .env* ./
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+
+# Make entrypoint executable
+RUN chmod +x /app/.docker/docker-entrypoint.sh
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Expose the port
 EXPOSE 3001
 
-RUN chmod 777 /app/.docker/docker-entrypoint.sh
-
-# Set the entry point to our script
+# Set the entry point
 ENTRYPOINT ["/app/.docker/docker-entrypoint.sh"] 
