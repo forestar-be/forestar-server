@@ -1448,7 +1448,12 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
   if (isUpdate) {
     existingOrder = await prisma.purchaseOrder.findUnique({
       where: { id: parseInt(id) },
-      include: { robotInventory: true, antenna: true, plugin: true },
+      include: {
+        robotInventory: true,
+        antenna: true,
+        plugin: true,
+        shelter: true,
+      },
     });
 
     if (!existingOrder) {
@@ -1466,11 +1471,11 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     robotInventoryId,
     pluginInventoryId,
     antennaInventoryId,
+    shelterInventoryId,
     hasWire,
     wireLength,
-    shelterType,
-    shelterPrice,
     hasAntennaSupport,
+    hasPlacement,
     installationDate,
     needsInstaller,
     installationNotes,
@@ -1516,6 +1521,18 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           .json({ message: 'Plugin not found or invalid category' });
       }
     }
+
+    // Check if shelter exists if an ID is provided
+    if (shelterInventoryId) {
+      const shelter = await prisma.robotInventory.findUnique({
+        where: { id: shelterInventoryId },
+      });
+      if (!shelter || shelter.category !== 'SHELTER') {
+        return res
+          .status(400)
+          .json({ message: 'Shelter not found or invalid category' });
+      }
+    }
   }
 
   // Prepare data for create/update
@@ -1541,19 +1558,21 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           antennaInventoryId !== undefined
             ? antennaInventoryId
             : existingOrder.antennaInventoryId,
+        shelterInventoryId:
+          shelterInventoryId !== undefined
+            ? shelterInventoryId
+            : existingOrder.shelterInventoryId,
         hasWire: hasWire !== undefined ? hasWire : existingOrder.hasWire,
         wireLength:
           wireLength !== undefined ? wireLength : existingOrder.wireLength,
-        shelterType:
-          shelterType !== undefined ? shelterType : existingOrder.shelterType,
-        shelterPrice:
-          shelterPrice !== undefined
-            ? shelterPrice
-            : existingOrder.shelterPrice,
         hasAntennaSupport:
           hasAntennaSupport !== undefined
             ? hasAntennaSupport
             : existingOrder.hasAntennaSupport,
+        hasPlacement:
+          hasPlacement !== undefined
+            ? hasPlacement
+            : existingOrder.hasPlacement,
         installationDate:
           installationDate !== undefined
             ? installationDate
@@ -1585,11 +1604,11 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         robotInventoryId,
         pluginInventoryId,
         antennaInventoryId,
+        shelterInventoryId,
         hasWire: hasWire || false,
         wireLength: wireLength || null,
-        shelterType: shelterType || null,
-        shelterPrice: shelterPrice || null,
         hasAntennaSupport: hasAntennaSupport || false,
+        hasPlacement: hasPlacement || false,
         installationDate: installationDate ? new Date(installationDate) : null,
         needsInstaller: needsInstaller || false,
         installationNotes: installationNotes || null,
@@ -1606,12 +1625,22 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
       purchaseOrder = await tx.purchaseOrder.update({
         where: { id: parseInt(id) },
         data: orderDataForDb,
-        include: { robotInventory: true, antenna: true, plugin: true },
+        include: {
+          robotInventory: true,
+          antenna: true,
+          plugin: true,
+          shelter: true,
+        },
       });
     } else {
       purchaseOrder = await tx.purchaseOrder.create({
         data: orderDataForDb,
-        include: { robotInventory: true, antenna: true, plugin: true },
+        include: {
+          robotInventory: true,
+          antenna: true,
+          plugin: true,
+          shelter: true,
+        },
       });
 
       // Update inventory only on creation
@@ -1642,6 +1671,16 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         await updateInventoryForItem(
           tx,
           pluginInventoryId,
+          currentYear,
+          currentMonth,
+        );
+      }
+
+      // Update shelter inventory if selected
+      if (shelterInventoryId) {
+        await updateInventoryForItem(
+          tx,
+          shelterInventoryId,
           currentYear,
           currentMonth,
         );
@@ -1678,7 +1717,9 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           const eventId = await createOrUpdateCalendarEventPurchaseOrder({
             eventId: existingOrder.eventId,
             summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
-            description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+            description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
+Adresse: ${purchaseOrder.clientAddress}
+Téléphone: ${purchaseOrder.clientPhone}`,
             location: purchaseOrder.clientAddress,
             startDate: new Date(installationDate),
             endDate: new Date(installationDate),
@@ -1709,7 +1750,9 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
       // For new orders, create event if installationDate is provided
       const eventId = await createOrUpdateCalendarEventPurchaseOrder({
         summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
-        description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+        description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
+Adresse: ${purchaseOrder.clientAddress}
+Téléphone: ${purchaseOrder.clientPhone}`,
         location: purchaseOrder.clientAddress,
         startDate: new Date(installationDate),
         endDate: new Date(installationDate),
@@ -1778,6 +1821,7 @@ supervisorRoutes.get(
         robotInventory: true,
         antenna: true,
         plugin: true,
+        shelter: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -1798,6 +1842,7 @@ supervisorRoutes.get(
         robotInventory: true,
         antenna: true,
         plugin: true,
+        shelter: true,
       },
     });
 
@@ -1833,7 +1878,12 @@ supervisorRoutes.delete(
     // Check if purchase order exists
     const existingOrder = await prisma.purchaseOrder.findUnique({
       where: { id: parseInt(id) },
-      include: { robotInventory: true, antenna: true, plugin: true },
+      include: {
+        robotInventory: true,
+        antenna: true,
+        plugin: true,
+        shelter: true,
+      },
     });
 
     if (!existingOrder) {
@@ -1891,6 +1941,16 @@ supervisorRoutes.delete(
         await restoreInventoryItem(
           tx,
           existingOrder.pluginInventoryId,
+          orderYear,
+          orderMonth,
+        );
+      }
+
+      // Restore shelter inventory if exists
+      if (existingOrder.shelterInventoryId) {
+        await restoreInventoryItem(
+          tx,
+          existingOrder.shelterInventoryId,
           orderYear,
           orderMonth,
         );
@@ -1996,6 +2056,7 @@ supervisorRoutes.patch(
           robotInventory: true,
           antenna: true,
           plugin: true,
+          shelter: true,
         },
       });
 
@@ -2006,6 +2067,191 @@ supervisorRoutes.patch(
         .status(500)
         .json({ message: 'Failed to update purchase order status' });
     }
+  }),
+);
+
+// Get all installation preparation texts
+supervisorRoutes.get(
+  '/installation-preparation-texts',
+  asyncHandler(async (req, res) => {
+    const texts = await prisma.installationPreparationText.findMany({
+      orderBy: {
+        order: 'asc',
+      },
+    });
+    res.json(texts);
+  }),
+);
+
+// Add a new installation preparation text
+supervisorRoutes.post(
+  '/installation-preparation-texts',
+  asyncHandler(async (req, res) => {
+    const { content, type, order } = req.body;
+
+    // Validate input
+    if (!content || !type || order === undefined) {
+      return res
+        .status(400)
+        .json({ message: 'Content, type, and order are required' });
+    }
+
+    // If order is specified, shift all items with equal or higher order
+    if (order !== undefined) {
+      await prisma.installationPreparationText.updateMany({
+        where: {
+          order: {
+            gte: order,
+          },
+        },
+        data: {
+          order: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    const newText = await prisma.installationPreparationText.create({
+      data: {
+        content,
+        type,
+        order,
+      },
+    });
+
+    res.status(201).json(newText);
+  }),
+);
+
+// Update an installation preparation text
+supervisorRoutes.patch(
+  '/installation-preparation-texts/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { content, type, order } = req.body;
+
+    // Get the current text
+    const currentText = await prisma.installationPreparationText.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!currentText) {
+      return res.status(404).json({ message: 'Text not found' });
+    }
+
+    // Handle order changes if needed
+    if (order !== undefined && order !== currentText.order) {
+      if (order > currentText.order) {
+        // Moving down - decrement items in between
+        await prisma.installationPreparationText.updateMany({
+          where: {
+            order: {
+              gt: currentText.order,
+              lte: order,
+            },
+          },
+          data: {
+            order: {
+              decrement: 1,
+            },
+          },
+        });
+      } else {
+        // Moving up - increment items in between
+        await prisma.installationPreparationText.updateMany({
+          where: {
+            order: {
+              gte: order,
+              lt: currentText.order,
+            },
+          },
+          data: {
+            order: {
+              increment: 1,
+            },
+          },
+        });
+      }
+    }
+
+    // Update the text
+    const updatedText = await prisma.installationPreparationText.update({
+      where: { id: parseInt(id) },
+      data: {
+        content: content !== undefined ? content : undefined,
+        type: type !== undefined ? type : undefined,
+        order: order !== undefined ? order : undefined,
+      },
+    });
+
+    res.json(updatedText);
+  }),
+);
+
+// Delete an installation preparation text
+supervisorRoutes.delete(
+  '/installation-preparation-texts/:id',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Get the text to delete
+    const textToDelete = await prisma.installationPreparationText.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!textToDelete) {
+      return res.status(404).json({ message: 'Text not found' });
+    }
+
+    // Delete the text
+    await prisma.installationPreparationText.delete({
+      where: { id: parseInt(id) },
+    });
+
+    // Reorder remaining texts
+    await prisma.installationPreparationText.updateMany({
+      where: {
+        order: {
+          gt: textToDelete.order,
+        },
+      },
+      data: {
+        order: {
+          decrement: 1,
+        },
+      },
+    });
+
+    res.status(204).send();
+  }),
+);
+
+// Reorder installation preparation texts
+supervisorRoutes.post(
+  '/installation-preparation-texts/reorder',
+  asyncHandler(async (req, res) => {
+    const { textIds } = req.body;
+
+    if (!Array.isArray(textIds)) {
+      return res.status(400).json({ message: 'textIds array is required' });
+    }
+
+    // Update order in transaction
+    await prisma.$transaction(
+      textIds.map((id, index) =>
+        prisma.installationPreparationText.update({
+          where: { id: parseInt(id.toString()) },
+          data: { order: index },
+        }),
+      ),
+    );
+
+    const updatedTexts = await prisma.installationPreparationText.findMany({
+      orderBy: { order: 'asc' },
+    });
+
+    res.json(updatedTexts);
   }),
 );
 

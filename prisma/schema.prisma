@@ -181,6 +181,7 @@ model RobotInventory {
   purchaseOrders PurchaseOrder[] @relation("RobotToPurchaseOrder")
   purchaseOrdersAsPlugin PurchaseOrder[] @relation("PluginToPurchaseOrder")
   purchaseOrdersAsAntenna PurchaseOrder[] @relation("AntennaToPurchaseOrder")
+  purchaseOrdersAsShelter PurchaseOrder[] @relation("ShelterToPurchaseOrder")
 }
 
 model InventoryPlan {
@@ -216,13 +217,14 @@ model PurchaseOrder {
   // Accessories
   pluginInventoryId Int?
   antennaInventoryId Int?
+  shelterInventoryId Int?
   plugin           RobotInventory? @relation("PluginToPurchaseOrder", fields: [pluginInventoryId], references: [id])
   antenna          RobotInventory? @relation("AntennaToPurchaseOrder", fields: [antennaInventoryId], references: [id])
+  shelter          RobotInventory? @relation("ShelterToPurchaseOrder", fields: [shelterInventoryId], references: [id])
   hasWire          Boolean   @default(false)
   wireLength       Int?
-  shelterType      String?
-  shelterPrice     Float?
   hasAntennaSupport Boolean  @default(false)
+  hasPlacement     Boolean   @default(false)
   
   // Installation
   installationDate DateTime?
@@ -286,6 +288,15 @@ model RentalTerms {
   updatedAt DateTime        @updatedAt
 }
 
+model InstallationPreparationText {
+  id        Int                   @id @default(autoincrement())
+  content   String
+  type      InstallationTextType
+  order     Int
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+}
+
 enum Role {
   OPERATOR
   SUPERVISOR
@@ -310,4 +321,12 @@ enum InventoryCategory {
   ROBOT
   ANTENNA
   PLUGIN
+  SHELTER
+}
+
+enum InstallationTextType {
+  TITLE
+  SUBTITLE
+  SUBTITLE2
+  PARAGRAPH
 }
