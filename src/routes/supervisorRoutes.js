@@ -1469,6 +1469,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     clientPhone,
     deposit,
     robotInventoryId,
+    serialNumber,
     pluginInventoryId,
     antennaInventoryId,
     shelterInventoryId,
@@ -1481,6 +1482,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     installationNotes,
     hasAppointment,
     isInstalled,
+    isInvoiced,
   } = orderData;
 
   // Validate required fields for new orders
@@ -1550,6 +1552,10 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           clientPhone !== undefined ? clientPhone : existingOrder.clientPhone,
         deposit: deposit !== undefined ? deposit : existingOrder.deposit,
         robotInventoryId: robotInventoryId || existingOrder.robotInventoryId,
+        serialNumber:
+          serialNumber !== undefined
+            ? serialNumber
+            : existingOrder.serialNumber,
         pluginInventoryId:
           pluginInventoryId !== undefined
             ? pluginInventoryId
@@ -1593,6 +1599,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
             : existingOrder.hasAppointment,
         isInstalled:
           isInstalled !== undefined ? isInstalled : existingOrder.isInstalled,
+        isInvoiced:
+          isInvoiced !== undefined ? isInvoiced : existingOrder.isInvoiced,
       }
     : {
         clientFirstName,
@@ -1602,6 +1610,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         clientPhone: clientPhone || '',
         deposit: deposit || 0,
         robotInventoryId,
+        serialNumber: serialNumber || '',
         pluginInventoryId,
         antennaInventoryId,
         shelterInventoryId,
@@ -1614,6 +1623,7 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
         installationNotes: installationNotes || null,
         hasAppointment: hasAppointment || false,
         isInstalled: isInstalled || false,
+        isInvoiced: isInvoiced || false,
       };
 
   // Create or update purchase order using transaction to ensure atomicity
@@ -2035,10 +2045,14 @@ supervisorRoutes.patch(
   '/purchase-orders/:id/status',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { hasAppointment, isInstalled } = req.body;
+    const { hasAppointment, isInstalled, isInvoiced } = req.body;
 
     // Validate that at least one status field is provided
-    if (hasAppointment === undefined && isInstalled === undefined) {
+    if (
+      hasAppointment === undefined &&
+      isInstalled === undefined &&
+      isInvoiced === undefined
+    ) {
       return res.status(400).json({ message: 'No status fields provided' });
     }
 
@@ -2047,6 +2061,7 @@ supervisorRoutes.patch(
     if (hasAppointment !== undefined)
       updateData.hasAppointment = hasAppointment;
     if (isInstalled !== undefined) updateData.isInstalled = isInstalled;
+    if (isInvoiced !== undefined) updateData.isInvoiced = isInvoiced;
 
     try {
       const updatedOrder = await prisma.purchaseOrder.update({
