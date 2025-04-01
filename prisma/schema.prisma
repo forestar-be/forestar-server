@@ -213,6 +213,7 @@ model PurchaseOrder {
   // Robot details
   robotInventoryId Int
   robotInventory   RobotInventory @relation("RobotToPurchaseOrder", fields: [robotInventoryId], references: [id])
+  serialNumber     String?
   
   // Accessories
   pluginInventoryId Int?
@@ -234,6 +235,7 @@ model PurchaseOrder {
   // Status fields
   hasAppointment   Boolean   @default(false)
   isInstalled      Boolean   @default(false)
+  isInvoiced       Boolean   @default(false)
   
   // Files
   orderPdfId       String?
