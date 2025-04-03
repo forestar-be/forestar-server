@@ -189,12 +189,11 @@ model InventoryPlan {
   robotInventory RobotInventory @relation(fields: [robotInventoryId], references: [id], onDelete: Cascade)
   robotInventoryId Int
   year           Int      
-  month          Int      
   quantity       Int      
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([robotInventoryId, year, month])
+  @@unique([robotInventoryId, year])
 }
 
 model PurchaseOrder {
