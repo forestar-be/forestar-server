@@ -1220,23 +1220,20 @@ supervisorRoutes.delete(
   }),
 );
 
-// Récupérer les plans d'inventaire filtrés par année et mois
+// Récupérer les plans d'inventaire filtrés par année
 supervisorRoutes.get(
   '/inventory-plans',
   asyncHandler(async (req, res) => {
-    const { year, month } = req.query;
+    const { year } = req.query;
 
     const filter = {};
     if (year) filter.year = parseInt(year);
-    if (month) filter.month = parseInt(month);
 
     try {
       const plans = await prisma.inventoryPlan.findMany({
         where: filter,
         include: {
           robotInventory: true,
-          antenna: true,
-          plugin: true,
         },
         orderBy: {
           robotInventory: {
@@ -1253,7 +1250,7 @@ supervisorRoutes.get(
   }),
 );
 
-// Récupérer les plans d'inventaire groupés par année et mois
+// Récupérer les plans d'inventaire groupés par année
 supervisorRoutes.get(
   '/inventory-summary',
   asyncHandler(async (req, res) => {
@@ -1265,15 +1262,15 @@ supervisorRoutes.get(
         orderBy: { name: 'asc' },
       });
 
-      // Obtenir toutes les années et mois uniques disponibles
-      const yearsMonths = await prisma.inventoryPlan.groupBy({
-        by: ['year', 'month'],
-        orderBy: [{ year: 'asc' }, { month: 'asc' }],
+      // Obtenir toutes les années uniques disponibles
+      const years = await prisma.inventoryPlan.groupBy({
+        by: ['year'],
+        orderBy: [{ year: 'asc' }],
       });
 
       res.json({
         robots,
-        periods: yearsMonths,
+        periods: years.map((y) => ({ year: y.year })),
       });
     } catch (error) {
       logger.error('Error fetching inventory summary:', error);
@@ -1286,13 +1283,13 @@ supervisorRoutes.get(
 supervisorRoutes.post(
   '/inventory-plans',
   asyncHandler(async (req, res) => {
-    const { robotInventoryId, year, month, quantity } = req.body;
+    const { robotInventoryId, year, quantity } = req.body;
 
     // Validation de base
-    if (!robotInventoryId || !year || !month || quantity === undefined) {
+    if (!robotInventoryId || !year || quantity === undefined) {
       return res.status(400).json({
         message:
-          'Tous les champs (robotInventoryId, year, month, quantity) sont obligatoires.',
+          'Tous les champs (robotInventoryId, year, quantity) sont obligatoires.',
       });
     }
 
@@ -1300,10 +1297,9 @@ supervisorRoutes.post(
       // Upsert: Create if doesn't exist, update if exists
       const plan = await prisma.inventoryPlan.upsert({
         where: {
-          robotInventoryId_year_month: {
+          robotInventoryId_year: {
             robotInventoryId: parseInt(robotInventoryId),
             year: parseInt(year),
-            month: parseInt(month),
           },
         },
         update: {
@@ -1312,7 +1308,6 @@ supervisorRoutes.post(
         create: {
           robotInventoryId: parseInt(robotInventoryId),
           year: parseInt(year),
-          month: parseInt(month),
           quantity: parseInt(quantity),
         },
       });
@@ -1321,25 +1316,6 @@ supervisorRoutes.post(
     } catch (error) {
       logger.error('Error creating/updating inventory plan:', error);
       res.status(500).json({ error: 'Failed to create/update inventory plan' });
-    }
-  }),
-);
-
-// Supprimer un plan d'inventaire
-supervisorRoutes.delete(
-  '/inventory-plans/:id',
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    try {
-      await prisma.inventoryPlan.delete({
-        where: { id: parseInt(id) },
-      });
-
-      res.status(204).send();
-    } catch (error) {
-      logger.error('Error deleting inventory plan:', error);
-      res.status(500).json({ error: 'Failed to delete inventory plan' });
     }
   }),
 );
@@ -1361,10 +1337,9 @@ supervisorRoutes.post(
         plans.map((plan) => {
           return prisma.inventoryPlan.upsert({
             where: {
-              robotInventoryId_year_month: {
+              robotInventoryId_year: {
                 robotInventoryId: parseInt(plan.robotInventoryId),
                 year: parseInt(plan.year),
-                month: parseInt(plan.month),
               },
             },
             update: {
@@ -1373,7 +1348,6 @@ supervisorRoutes.post(
             create: {
               robotInventoryId: parseInt(plan.robotInventoryId),
               year: parseInt(plan.year),
-              month: parseInt(plan.month),
               quantity: parseInt(plan.quantity),
             },
           });
@@ -1656,44 +1630,23 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
       // Update inventory only on creation
       const currentDate = new Date();
       const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1;
 
       // Update robot inventory
-      await updateInventoryForItem(
-        tx,
-        robotInventoryId,
-        currentYear,
-        currentMonth,
-      );
+      await updateInventoryForItem(tx, robotInventoryId, currentYear);
 
       // Update antenna inventory if selected
       if (antennaInventoryId) {
-        await updateInventoryForItem(
-          tx,
-          antennaInventoryId,
-          currentYear,
-          currentMonth,
-        );
+        await updateInventoryForItem(tx, antennaInventoryId, currentYear);
       }
 
       // Update plugin inventory if selected
       if (pluginInventoryId) {
-        await updateInventoryForItem(
-          tx,
-          pluginInventoryId,
-          currentYear,
-          currentMonth,
-        );
+        await updateInventoryForItem(tx, pluginInventoryId, currentYear);
       }
 
       // Update shelter inventory if selected
       if (shelterInventoryId) {
-        await updateInventoryForItem(
-          tx,
-          shelterInventoryId,
-          currentYear,
-          currentMonth,
-        );
+        await updateInventoryForItem(tx, shelterInventoryId, currentYear);
       }
     }
 
@@ -1784,13 +1737,12 @@ Téléphone: ${purchaseOrder.clientPhone}`,
 };
 
 // Helper function to update inventory for an item
-const updateInventoryForItem = async (tx, inventoryId, year, month) => {
+const updateInventoryForItem = async (tx, inventoryId, year) => {
   const inventoryPlan = await tx.inventoryPlan.findUnique({
     where: {
-      robotInventoryId_year_month: {
+      robotInventoryId_year: {
         robotInventoryId: inventoryId,
         year,
-        month,
       },
     },
   });
@@ -1799,10 +1751,9 @@ const updateInventoryForItem = async (tx, inventoryId, year, month) => {
     // If inventory plan exists, update it
     await tx.inventoryPlan.update({
       where: {
-        robotInventoryId_year_month: {
+        robotInventoryId_year: {
           robotInventoryId: inventoryId,
           year,
-          month,
         },
       },
       data: {
@@ -1815,7 +1766,6 @@ const updateInventoryForItem = async (tx, inventoryId, year, month) => {
       data: {
         robotInventoryId: inventoryId,
         year,
-        month,
         quantity: -1, // Start with -1 since we're selling one
       },
     });
@@ -1926,15 +1876,9 @@ supervisorRoutes.delete(
       // Get the creation date of the purchase order to determine the inventory period
       const orderDate = new Date(existingOrder.createdAt);
       const orderYear = orderDate.getFullYear();
-      const orderMonth = orderDate.getMonth() + 1; // JavaScript months are 0-indexed
 
       // Find and update the robot inventory plan
-      await restoreInventoryItem(
-        tx,
-        existingOrder.robotInventoryId,
-        orderYear,
-        orderMonth,
-      );
+      await restoreInventoryItem(tx, existingOrder.robotInventoryId, orderYear);
 
       // Restore antenna inventory if exists
       if (existingOrder.antennaInventoryId) {
@@ -1942,7 +1886,6 @@ supervisorRoutes.delete(
           tx,
           existingOrder.antennaInventoryId,
           orderYear,
-          orderMonth,
         );
       }
 
@@ -1952,7 +1895,6 @@ supervisorRoutes.delete(
           tx,
           existingOrder.pluginInventoryId,
           orderYear,
-          orderMonth,
         );
       }
 
@@ -1962,7 +1904,6 @@ supervisorRoutes.delete(
           tx,
           existingOrder.shelterInventoryId,
           orderYear,
-          orderMonth,
         );
       }
 
@@ -1977,13 +1918,12 @@ supervisorRoutes.delete(
 );
 
 // Helper function to restore inventory item quantity
-const restoreInventoryItem = async (tx, inventoryId, year, month) => {
+const restoreInventoryItem = async (tx, inventoryId, year) => {
   const inventoryPlan = await tx.inventoryPlan.findUnique({
     where: {
-      robotInventoryId_year_month: {
+      robotInventoryId_year: {
         robotInventoryId: inventoryId,
         year,
-        month,
       },
     },
   });
@@ -1991,10 +1931,9 @@ const restoreInventoryItem = async (tx, inventoryId, year, month) => {
   if (inventoryPlan) {
     await tx.inventoryPlan.update({
       where: {
-        robotInventoryId_year_month: {
+        robotInventoryId_year: {
           robotInventoryId: inventoryId,
           year,
-          month,
         },
       },
       data: {
