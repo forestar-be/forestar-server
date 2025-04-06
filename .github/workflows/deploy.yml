@@ -114,7 +114,10 @@ jobs:
             sed -i 's|PORTAINER_SSL_KEY|${{ secrets.PORTAINER_SSL_KEY }}|g' docker-compose.yml && \
             sed -i 's|LOG_DIR|${{ secrets.LOG_DIR }}|g' docker-compose.yml && \
             sed -i 's|IMAGES_BASE_DIR|${{ secrets.IMAGES_BASE_DIR }}|g' docker-compose.yml && \
-            sed -i 's|IMAGES_DIR|${{ secrets.IMAGES_DIR }}|g' docker-compose.yml"
+            sed -i 's|IMAGES_DIR|${{ secrets.IMAGES_DIR }}|g' docker-compose.yml && \
+            sed -i 's|PROMETHEUS_DATA_DIR|${{ secrets.PROMETHEUS_DATA_DIR }}|g' docker-compose.yml && \
+            sed -i 's|GRAFANA_DATA_DIR|${{ secrets.GRAFANA_DATA_DIR }}|g' docker-compose.yml && \
+            sed -i 's|ETC_PROMETHEUS_DATA_DIR|${{ secrets.ETC_PROMETHEUS_DATA_DIR }}|g' docker-compose.yml"
 
       - name: Deploy with Docker
         run: |
