@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:20 AS builder
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 # Production stage
-FROM node:20-slim 
+FROM node:20
 
 WORKDIR /app
 
