@@ -119,6 +119,11 @@ jobs:
             sed -i 's|GRAFANA_DATA_DIR|${{ secrets.GRAFANA_DATA_DIR }}|g' docker-compose.yml && \
             sed -i 's|ETC_PROMETHEUS_DIR|${{ secrets.ETC_PROMETHEUS_DIR }}|g' docker-compose.yml"
 
+      - name: Setup Prometheus configuration
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ${{ secrets.ETC_PROMETHEUS_DIR }} && \
+            cp ${{ secrets.PROJECT_PATH }}/prometheus/prometheus.yml ${{ secrets.ETC_PROMETHEUS_DIR }}/"
+
       - name: Deploy with Docker
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.PROJECT_PATH }} && \
