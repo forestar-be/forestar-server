@@ -117,7 +117,7 @@ jobs:
             sed -i 's|IMAGES_DIR|${{ secrets.IMAGES_DIR }}|g' docker-compose.yml && \
             sed -i 's|PROMETHEUS_DATA_DIR|${{ secrets.PROMETHEUS_DATA_DIR }}|g' docker-compose.yml && \
             sed -i 's|GRAFANA_DATA_DIR|${{ secrets.GRAFANA_DATA_DIR }}|g' docker-compose.yml && \
-            sed -i 's|ETC_PROMETHEUS_DATA_DIR|${{ secrets.ETC_PROMETHEUS_DATA_DIR }}|g' docker-compose.yml"
+            sed -i 's|ETC_PROMETHEUS_DIR|${{ secrets.ETC_PROMETHEUS_DIR }}|g' docker-compose.yml"
 
       - name: Deploy with Docker
         run: |
