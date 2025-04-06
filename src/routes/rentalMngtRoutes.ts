@@ -281,6 +281,14 @@ rentalMngtRoutes.patch(
         }
 
         if (dataWithoutRentals) {
+          if (
+            dataWithoutRentals.fuelLevel ||
+            dataWithoutRentals.operatingHours
+          ) {
+            dataWithoutRentals.lastMeasurementUpdate = new Date();
+            dataWithoutRentals.lastMeasurementUser = req.user?.username;
+          }
+
           await prisma.machineRented.update({
             where: { id: idParsed },
             data: dataWithoutRentals,

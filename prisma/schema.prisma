@@ -107,31 +107,35 @@ model MachineRented {
   price_per_day                Float                @default(0)
   guests                       String[]             @default([])
   deposit                      Float                @default(0)
+  operatingHours               Float?               // Added: Operating hours counter
+  fuelLevel                    Float?               @default(0) // Added: 0-100 percent
+  lastMeasurementUpdate        DateTime?            // Added: When measurements were last updated
+  lastMeasurementUser          String?              // Added: User who performed the measurement update
   machineRentals               MachineRental[]
   parts                        MachineRentedPart[]
   maintenanceHistories         MaintenanceHistory[]
 }
 
 model MachineRental {
-  id                  Int           @id @default(autoincrement())
-  machineRentedId     Int
-  rentalDate          DateTime
-  returnDate          DateTime?
-  clientAddress       String        @default("")
-  clientCity          String        @default("")
-  clientEmail         String        @default("")
-  clientFirstName     String        @default("")
-  clientLastName      String        @default("")
-  clientPhone         String        @default("")
-  clientPostal        String        @default("")
-  paid                Boolean       @default(false)
-  guests              String[]      @default([])
-  eventId             String
-  with_shipping       Boolean       @default(false)
-  depositToPay        Boolean       @default(false)
-  finalTermsPdfId     String?
-  createdAt           DateTime      @default(now())
-  machineRented       MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
+  id                    Int           @id @default(autoincrement())
+  machineRentedId       Int
+  rentalDate            DateTime
+  returnDate            DateTime?
+  clientAddress         String        @default("")
+  clientCity            String        @default("")
+  clientEmail           String        @default("")
+  clientFirstName       String        @default("")
+  clientLastName        String        @default("")
+  clientPhone           String        @default("")
+  clientPostal          String        @default("")
+  paid                  Boolean       @default(false)
+  guests                String[]      @default([])
+  eventId               String
+  with_shipping         Boolean       @default(false)
+  depositToPay          Boolean       @default(false)
+  finalTermsPdfId       String?
+  createdAt             DateTime      @default(now())
+  machineRented         MachineRented @relation(fields: [machineRentedId], references: [id], onDelete: Cascade)
 }
 
 model MachineRentedPart {
@@ -257,6 +261,10 @@ view MachineRentedView {
   deposit                      Float?
   next_maintenance             DateTime?        @db.Timestamp(6)
   forbiddenRentalDays          DateTime[]       @db.Date
+  operatingHours               Float?
+  fuelLevel                    Float?
+  lastMeasurementUpdate        DateTime?        @db.Timestamp(6)
+  lastMeasurementUser          String?
 }
 
 view MachineRentalView {

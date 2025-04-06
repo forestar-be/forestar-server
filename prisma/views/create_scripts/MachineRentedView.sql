@@ -19,6 +19,10 @@ SELECT
   mr.price_per_day,
   mr.guests,
   mr.deposit,
+  mr."operatingHours",
+  mr."fuelLevel",
+  mr."lastMeasurementUpdate",
+  mr."lastMeasurementUser",
   CASE
     WHEN (
       (

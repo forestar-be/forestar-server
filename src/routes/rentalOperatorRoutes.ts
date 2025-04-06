@@ -208,6 +208,71 @@ rentalOperatorRoutes.post(
   }),
 );
 
+// Update machine rental state (depositToPay, operatingHours, fuelLevel)
+rentalOperatorRoutes.patch(
+  '/machine-rental/:id/update-state',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const rentalId = parseInt(id);
+    const { depositToPay, operatingHours, fuelLevel } = req.body;
+    const username = req.user?.username;
+
+    // Get the rental to update
+    const machineRental = await prisma.machineRental.findUnique({
+      where: { id: rentalId },
+    });
+
+    if (!machineRental) {
+      return res.status(404).json({ message: 'Machine rental not found' });
+    }
+
+    // Prepare update data for machine rental
+    const rentalUpdateData: any = {};
+    if (depositToPay !== undefined) {
+      rentalUpdateData.depositToPay = depositToPay;
+    }
+
+    // Update rental if needed
+    if (Object.keys(rentalUpdateData).length > 0) {
+      await prisma.machineRental.update({
+        where: { id: rentalId },
+        data: rentalUpdateData,
+      });
+    }
+
+    // Prepare update data for machine rented
+    const machineUpdateData: any = {};
+    if (operatingHours !== undefined || fuelLevel !== undefined) {
+      if (operatingHours !== undefined) {
+        machineUpdateData.operatingHours = operatingHours;
+      }
+
+      if (fuelLevel !== undefined) {
+        machineUpdateData.fuelLevel = fuelLevel;
+      }
+
+      // Update the timestamp and username whenever measurements are changed
+      machineUpdateData.lastMeasurementUpdate = new Date();
+
+      // Store the username if available
+      if (username) {
+        machineUpdateData.lastMeasurementUser = username;
+      }
+
+      // Update machine rented
+      await prisma.machineRented.update({
+        where: { id: machineRental.machineRentedId },
+        data: machineUpdateData,
+      });
+    }
+
+    // Get the updated rental with machine data
+    const updatedRental = await getMachineRentalView(rentalId)(prisma);
+
+    res.json(updatedRental);
+  }),
+);
+
 // Get all rental terms
 rentalOperatorRoutes.get(
   '/rental-terms',

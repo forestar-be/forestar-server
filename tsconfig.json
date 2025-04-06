@@ -1,4 +1,8 @@
 {
+  "ts-node": {
+    "files": true
+  },
+  "files": ["src/app.js", "src/global.d.ts"],
   "compilerOptions": {
     "target": "ES6",
     "module": "CommonJS",
