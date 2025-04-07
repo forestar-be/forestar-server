@@ -1464,7 +1464,8 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  if (!isUpdate) {
+  // Check if inventory items exist and are of the correct category (for new orders or changes in inventory items)
+  if (!isUpdate || robotInventoryId !== existingOrder.robotInventoryId) {
     // Check if robot exists
     const robot = await prisma.robotInventory.findUnique({
       where: { id: robotInventoryId },
@@ -1473,41 +1474,50 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
     if (!robot) {
       return res.status(400).json({ message: 'Robot not found' });
     }
+  }
 
-    // Check if antenna exists if an ID is provided
-    if (antennaInventoryId) {
-      const antenna = await prisma.robotInventory.findUnique({
-        where: { id: antennaInventoryId },
-      });
-      if (!antenna || antenna.category !== 'ANTENNA') {
-        return res
-          .status(400)
-          .json({ message: 'Antenna not found or invalid category' });
-      }
+  // Check if antenna exists if an ID is provided and it differs from current
+  if (
+    antennaInventoryId &&
+    (!isUpdate || antennaInventoryId !== existingOrder.antennaInventoryId)
+  ) {
+    const antenna = await prisma.robotInventory.findUnique({
+      where: { id: antennaInventoryId },
+    });
+    if (!antenna || antenna.category !== 'ANTENNA') {
+      return res
+        .status(400)
+        .json({ message: 'Antenna not found or invalid category' });
     }
+  }
 
-    // Check if plugin exists if an ID is provided
-    if (pluginInventoryId) {
-      const plugin = await prisma.robotInventory.findUnique({
-        where: { id: pluginInventoryId },
-      });
-      if (!plugin || plugin.category !== 'PLUGIN') {
-        return res
-          .status(400)
-          .json({ message: 'Plugin not found or invalid category' });
-      }
+  // Check if plugin exists if an ID is provided and it differs from current
+  if (
+    pluginInventoryId &&
+    (!isUpdate || pluginInventoryId !== existingOrder.pluginInventoryId)
+  ) {
+    const plugin = await prisma.robotInventory.findUnique({
+      where: { id: pluginInventoryId },
+    });
+    if (!plugin || plugin.category !== 'PLUGIN') {
+      return res
+        .status(400)
+        .json({ message: 'Plugin not found or invalid category' });
     }
+  }
 
-    // Check if shelter exists if an ID is provided
-    if (shelterInventoryId) {
-      const shelter = await prisma.robotInventory.findUnique({
-        where: { id: shelterInventoryId },
-      });
-      if (!shelter || shelter.category !== 'SHELTER') {
-        return res
-          .status(400)
-          .json({ message: 'Shelter not found or invalid category' });
-      }
+  // Check if shelter exists if an ID is provided and it differs from current
+  if (
+    shelterInventoryId &&
+    (!isUpdate || shelterInventoryId !== existingOrder.shelterInventoryId)
+  ) {
+    const shelter = await prisma.robotInventory.findUnique({
+      where: { id: shelterInventoryId },
+    });
+    if (!shelter || shelter.category !== 'SHELTER') {
+      return res
+        .status(400)
+        .json({ message: 'Shelter not found or invalid category' });
     }
   }
 
@@ -1616,6 +1626,77 @@ const processPurchaseOrder = async (req, res, isUpdate = false) => {
           shelter: true,
         },
       });
+
+      // Handle inventory updates for edit case
+      // Get the creation date of the original order to determine inventory year
+      const orderDate = new Date(existingOrder.createdAt);
+      const inventoryYear = orderDate.getFullYear();
+
+      // Check if robot has changed
+      if (
+        robotInventoryId &&
+        robotInventoryId !== existingOrder.robotInventoryId
+      ) {
+        // Restore old robot inventory
+        await restoreInventoryItem(
+          tx,
+          existingOrder.robotInventoryId,
+          inventoryYear,
+        );
+        // Update new robot inventory
+        await updateInventoryForItem(tx, robotInventoryId, inventoryYear);
+      }
+
+      // Check if antenna has changed
+      if (antennaInventoryId !== existingOrder.antennaInventoryId) {
+        // If there was a previous antenna, restore its inventory
+        if (existingOrder.antennaInventoryId) {
+          await restoreInventoryItem(
+            tx,
+            existingOrder.antennaInventoryId,
+            inventoryYear,
+          );
+        }
+
+        // If there's a new antenna, update its inventory
+        if (antennaInventoryId) {
+          await updateInventoryForItem(tx, antennaInventoryId, inventoryYear);
+        }
+      }
+
+      // Check if plugin has changed
+      if (pluginInventoryId !== existingOrder.pluginInventoryId) {
+        // If there was a previous plugin, restore its inventory
+        if (existingOrder.pluginInventoryId) {
+          await restoreInventoryItem(
+            tx,
+            existingOrder.pluginInventoryId,
+            inventoryYear,
+          );
+        }
+
+        // If there's a new plugin, update its inventory
+        if (pluginInventoryId) {
+          await updateInventoryForItem(tx, pluginInventoryId, inventoryYear);
+        }
+      }
+
+      // Check if shelter has changed
+      if (shelterInventoryId !== existingOrder.shelterInventoryId) {
+        // If there was a previous shelter, restore its inventory
+        if (existingOrder.shelterInventoryId) {
+          await restoreInventoryItem(
+            tx,
+            existingOrder.shelterInventoryId,
+            inventoryYear,
+          );
+        }
+
+        // If there's a new shelter, update its inventory
+        if (shelterInventoryId) {
+          await updateInventoryForItem(tx, shelterInventoryId, inventoryYear);
+        }
+      }
     } else {
       purchaseOrder = await tx.purchaseOrder.create({
         data: orderDataForDb,
