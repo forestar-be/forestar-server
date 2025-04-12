@@ -18,7 +18,7 @@ const authMiddleware = require('./middleware/authMiddleware');
 const operatorRoutes = require('./routes/operatorRoutes');
 const supervisorRoutes = require('./routes/supervisorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-// const rateLimit = require('express-rate-limit');
+const rateLimit = require('express-rate-limit');
 const { initPingCron } = require('./helper/pingInterval');
 
 const app = express();
@@ -45,15 +45,16 @@ app.use(
 // Middleware pour parser le JSON
 app.use(bodyParser.json());
 
-// Rate limiting middleware
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 20, // Limit each IP to 100 requests per windowMs
-//   message: 'Trop de demandes de votre part, veuillez réessayer plus tard.',
-// });
-//
-// // Apply the rate limiting middleware to all requests
-// app.use(limiter);
+const loginLimiter = rateLimit({
+  windowMs: 2.5 * 60 * 1000,
+  max: 5,
+  message: 'Trop de tentatives de connexion, veuillez réessayer plus tard.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply to all routes ending with /login
+app.use(/\/.*\/login$/, loginLimiter);
 
 // Middleware to log each request
 app.use((req, res, next) => {
@@ -68,7 +69,7 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const duration = Date.now() - start;
     logger.info(
-      `${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`,
+      `${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms (${req.ip})`,
     );
   });
   next();

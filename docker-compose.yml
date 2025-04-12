@@ -16,9 +16,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   server:
     container_name: server
+    restart: always
     build:
       context: .
       dockerfile: Dockerfile
@@ -37,6 +43,39 @@ services:
       - IMAGES_DIR:IMAGES_BASE_DIR
     networks:
       - app_network
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  backup:
+    container_name: backup
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env.docker
+    environment:
+      - TZ=Europe/Paris
+    volumes:
+      - POSTGRES_DATA_DIR:/var/lib/postgresql/data:ro
+      - NGINX_CONF_DIR:/mnt/nginx_conf:ro
+      - HOST_DATA_DIR:/mnt/host_data:ro
+      - BACKUP_DIR:/backup
+      - SECRET_DIR:SECRET_DIR
+    networks:
+      - app_network
+    depends_on:
+      - db
+    labels:
+      - 'custom.forestar.scheduler=true'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   portainer:
     image: portainer/portainer-ce:latest
@@ -59,6 +98,11 @@ services:
       - /certs/fullchain.pem
       - --sslkey
       - /certs/privkey.pem
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   prometheus:
     image: prom/prometheus:latest
@@ -77,6 +121,11 @@ services:
       - '9090:9090'
     networks:
       - app_network
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -95,6 +144,11 @@ services:
       - '9100:9100'
     networks:
       - app_network
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   grafana:
     image: grafana/grafana:latest
@@ -104,8 +158,17 @@ services:
       - '3000:3000'
     volumes:
       - GRAFANA_DATA_DIR:/var/lib/grafana
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_LOG_LEVEL=debug
     networks:
       - app_network
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
 
 networks:
   app_network:
