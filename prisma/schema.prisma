@@ -239,6 +239,7 @@ model PurchaseOrder {
   hasAppointment   Boolean   @default(false)
   isInstalled      Boolean   @default(false)
   isInvoiced       Boolean   @default(false)
+  devis            Boolean   @default(false)
   
   // Files
   orderPdfId       String?

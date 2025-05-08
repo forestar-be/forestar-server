@@ -2063,15 +2063,17 @@ supervisorRoutes.get(
 
 supervisorRoutes.patch(
   '/purchase-orders/:id/status',
+  upload.single('pdf'),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { hasAppointment, isInstalled, isInvoiced } = req.body;
+    const { hasAppointment, isInstalled, isInvoiced, devis } = req.body;
 
     // Validate that at least one status field is provided
     if (
       hasAppointment === undefined &&
       isInstalled === undefined &&
-      isInvoiced === undefined
+      isInvoiced === undefined &&
+      devis === undefined
     ) {
       return res.status(400).json({ message: 'No status fields provided' });
     }
@@ -2079,11 +2081,49 @@ supervisorRoutes.patch(
     // Update only the provided status fields
     const updateData = {};
     if (hasAppointment !== undefined)
-      updateData.hasAppointment = hasAppointment;
-    if (isInstalled !== undefined) updateData.isInstalled = isInstalled;
-    if (isInvoiced !== undefined) updateData.isInvoiced = isInvoiced;
+      updateData.hasAppointment =
+        hasAppointment === 'true' || hasAppointment === true;
+    if (isInstalled !== undefined)
+      updateData.isInstalled = isInstalled === 'true' || isInstalled === true;
+    if (isInvoiced !== undefined)
+      updateData.isInvoiced = isInvoiced === 'true' || isInvoiced === true;
+    if (devis !== undefined)
+      updateData.devis = devis === 'true' || devis === true;
 
     try {
+      // If a new PDF is uploaded, update the file in the system
+      if (req.file) {
+        // Get the current purchase order to check if it has an existing PDF
+        const currentOrder = await prisma.purchaseOrder.findUnique({
+          where: { id: parseInt(id) },
+          select: {
+            orderPdfId: true,
+            clientFirstName: true,
+            clientLastName: true,
+          },
+        });
+
+        // Handle the PDF file
+        const pdfBuffer = req.file.buffer;
+        let fileId;
+
+        if (currentOrder.orderPdfId) {
+          // Delete the old PDF first
+          await deleteFileFromDrive(currentOrder.orderPdfId);
+        }
+
+        // Upload the new PDF
+        const { id: newFileId } = await uploadFileToDrive(
+          pdfBuffer,
+          `bon_commande_${id}_${currentOrder.clientFirstName || ''}_${currentOrder.clientLastName || ''}.pdf`,
+          'application/pdf',
+          'PURCHASE_ORDERS',
+        );
+
+        // Add the PDF ID to the update data
+        updateData.orderPdfId = newFileId;
+      }
+
       const updatedOrder = await prisma.purchaseOrder.update({
         where: { id: parseInt(id) },
         data: updateData,
