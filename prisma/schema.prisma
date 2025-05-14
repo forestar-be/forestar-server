@@ -241,8 +241,18 @@ model PurchaseOrder {
   isInvoiced       Boolean   @default(false)
   devis            Boolean   @default(false)
   
+  // Devis specific fields
+  validUntil       DateTime?
+  bankAccountNumber String?
+  
   // Files
   orderPdfId       String?
+  invoicePath      String?
+  photosPaths      String[]  @default([])
+  
+  // Signature fields
+  clientSignature  String?
+  signatureTimestamp DateTime?
 
   eventId          String?   // For calendar integration
 }

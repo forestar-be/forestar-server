@@ -103,7 +103,8 @@ jobs:
             echo \"MAIL_AUTH_GG=${{ secrets.MAIL_AUTH_GG }}\" >> .env.docker && \
             echo \"# Backup configuration\" >> .env.docker && \
             echo \"RUN_BACKUP_ON_STARTUP=${{ secrets.RUN_BACKUP_ON_STARTUP || 'false' }}\" >> .env.docker && \
-            echo \"BACKUP_GDRIVE_FOLDER_ID=${{ secrets.BACKUP_GDRIVE_FOLDER_ID }}\" >> .env.docker"
+            echo \"BACKUP_GDRIVE_FOLDER_ID=${{ secrets.BACKUP_GDRIVE_FOLDER_ID }}\" >> .env.docker && \
+            echo \"DEVIS_FOLDER=${{ secrets.DEVIS_FOLDER }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
