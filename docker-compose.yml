@@ -41,6 +41,7 @@ services:
       - SECRET_DIR:SECRET_DIR
       - LOG_DIR:/app/logs
       - IMAGES_DIR:IMAGES_BASE_DIR
+      - DEVIS_FOLDER:DEVIS_BASE_DIR
     networks:
       - app_network
     logging:

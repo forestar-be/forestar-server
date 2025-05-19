@@ -26,10 +26,10 @@ const purchaseOrdersRoutes = express.Router();
 const GOOGLE_CALENDAR_PURCHASE_ORDERS_ID =
   process.env.GOOGLE_CALENDAR_PURCHASE_ORDERS_ID;
 const CALENDAR_ID_PHONE_CALLBACKS = process.env.CALENDAR_ID_PHONE_CALLBACKS;
-const DEVIS_FOLDER = process.env.DEVIS_FOLDER;
+const DEVIS_FOLDER = process.env.DEVIS_BASE_DIR;
 
 if (!DEVIS_FOLDER) {
-  throw new Error('DEVIS_FOLDER is not defined');
+  throw new Error('DEVIS_BASE_DIR is not defined');
 }
 
 if (!fs.existsSync(DEVIS_FOLDER) || !fs.statSync(DEVIS_FOLDER).isDirectory()) {

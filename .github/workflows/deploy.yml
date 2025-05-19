@@ -104,7 +104,7 @@ jobs:
             echo \"# Backup configuration\" >> .env.docker && \
             echo \"RUN_BACKUP_ON_STARTUP=${{ secrets.RUN_BACKUP_ON_STARTUP || 'false' }}\" >> .env.docker && \
             echo \"BACKUP_GDRIVE_FOLDER_ID=${{ secrets.BACKUP_GDRIVE_FOLDER_ID }}\" >> .env.docker && \
-            echo \"DEVIS_FOLDER=${{ secrets.DEVIS_FOLDER }}\" >> .env.docker"
+            echo \"DEVIS_BASE_DIR=${{ secrets.DEVIS_BASE_DIR }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
@@ -119,6 +119,8 @@ jobs:
             sed -i 's|LOG_DIR|${{ secrets.LOG_DIR }}|g' docker-compose.yml && \
             sed -i 's|IMAGES_BASE_DIR|${{ secrets.IMAGES_BASE_DIR }}|g' docker-compose.yml && \
             sed -i 's|IMAGES_DIR|${{ secrets.IMAGES_DIR }}|g' docker-compose.yml && \
+            sed -i 's|DEVIS_BASE_DIR|${{ secrets.DEVIS_BASE_DIR }}|g' docker-compose.yml && \
+            sed -i 's|DEVIS_FOLDER|${{ secrets.DEVIS_FOLDER }}|g' docker-compose.yml && \
             sed -i 's|PROMETHEUS_DATA_DIR|${{ secrets.PROMETHEUS_DATA_DIR }}|g' docker-compose.yml && \
             sed -i 's|GRAFANA_DATA_DIR|${{ secrets.GRAFANA_DATA_DIR }}|g' docker-compose.yml && \
             sed -i 's|ETC_PROMETHEUS_DIR|${{ secrets.ETC_PROMETHEUS_DIR }}|g' docker-compose.yml && \
