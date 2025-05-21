@@ -3,6 +3,8 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  getCalendars,
+  getCalendarEvents,
 } from '../../helper/calendar.helper';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
@@ -42,6 +44,48 @@ if (!CALENDAR_ID_PHONE_CALLBACKS) {
 
 // sub routes for /purchase-orders
 supervisorRoutes.use('/purchase-orders', purchaseOrdersRoutes);
+
+// ===== Calendar routes =====
+// Get all available calendars
+supervisorRoutes.get(
+  '/calendars',
+  asyncHandler(async (req, res) => {
+    try {
+      const calendars = await getCalendars();
+      res.json(calendars);
+    } catch (error) {
+      logger.error('Error fetching calendars:', error);
+      res.status(500).json({ error: 'Failed to fetch calendars' });
+    }
+  }),
+);
+
+// Get events for selected calendars on a specific date
+supervisorRoutes.get(
+  '/calendar-events',
+  asyncHandler(async (req, res) => {
+    const { calendarIds, date } = req.query;
+
+    if (!calendarIds || !date) {
+      return res.status(400).json({
+        error:
+          'Missing required parameters: calendarIds (comma-separated) and date (YYYY-MM-DD)',
+      });
+    }
+
+    try {
+      // Parse calendar IDs from query string
+      const calendarIdList = calendarIds.split(',');
+
+      // Fetch events
+      const events = await getCalendarEvents(calendarIdList, date);
+      res.json(events);
+    } catch (error) {
+      logger.error('Error fetching calendar events:', error);
+      res.status(500).json({ error: 'Failed to fetch calendar events' });
+    }
+  }),
+);
 
 // POST /machine-repairs
 supervisorRoutes.post(

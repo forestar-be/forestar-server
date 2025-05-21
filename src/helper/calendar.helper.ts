@@ -154,3 +154,88 @@ export const getEventsFromIdList = async (
   );
   return await Promise.all(promises);
 };
+
+// Available calendars with their metadata
+export const AVAILABLE_CALENDARS = [
+  {
+    id: process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!,
+    name: 'Entretien',
+    color: '#4285F4',
+  },
+  {
+    id: process.env.GOOGLE_CALENDAR_RENTAL_ID!,
+    name: 'Location',
+    color: '#0F9D58',
+  },
+  {
+    id: process.env.GOOGLE_CALENDAR_PURCHASE_ORDERS_ID!,
+    name: 'Commandes',
+    color: '#DB4437',
+  },
+  {
+    id: process.env.CALENDAR_ID_PHONE_CALLBACKS!,
+    name: 'Rappels téléphoniques',
+    color: '#F4B400',
+  },
+];
+
+// Get available calendars
+export async function getCalendars() {
+  try {
+    // Return the predefined calendars
+    return AVAILABLE_CALENDARS;
+  } catch (error) {
+    logger.error('Error fetching calendars:', error);
+    throw error;
+  }
+}
+
+// Get events for specific calendars on a specific date
+export async function getCalendarEvents(calendarIds: string[], date: string) {
+  const calendar = getGgCalendar();
+
+  try {
+    // Calculate start and end of the day in local timezone
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Format dates for API
+    const timeMin = startDate.toISOString();
+    const timeMax = endDate.toISOString();
+
+    // Get events from all requested calendars
+    const eventPromises = calendarIds.map(async (calendarId) => {
+      const response = await calendar.events.list({
+        calendarId,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      // Map Google Calendar events to our app format
+      return (
+        response.data.items?.map((event) => ({
+          id: event.id,
+          calendarId,
+          title: event.summary || 'Sans titre',
+          start: event.start?.dateTime || event.start?.date,
+          end: event.end?.dateTime || event.end?.date,
+          location: event.location || '',
+          description: event.description || '',
+        })) || []
+      );
+    });
+
+    // Flatten the array of arrays into a single array of events
+    const events = (await Promise.all(eventPromises)).flat();
+
+    return events;
+  } catch (error) {
+    logger.error('Error fetching calendar events:', error);
+    throw error;
+  }
+}
