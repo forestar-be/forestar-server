@@ -1,6 +1,13 @@
 import { google } from 'googleapis';
 import { getOAuth2Client, isAuthenticated } from './authGoogle';
 import logger from '../config/logger';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(timezone);
+dayjs.extend(utc);
+
 export const calendarEntretienId: string =
   process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!;
 export const calendarRentalId: string = process.env.GOOGLE_CALENDAR_RENTAL_ID!;
@@ -195,16 +202,10 @@ export async function getCalendarEvents(calendarIds: string[], date: string) {
   const calendar = getGgCalendar();
 
   try {
-    // Calculate start and end of the day in local timezone
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
-
-    // Format dates for API
-    const timeMin = startDate.toISOString();
-    const timeMax = endDate.toISOString();
+    // Use dayjs for cleaner date handling
+    const requestDate = dayjs(date).tz('Europe/Paris');
+    const timeMin = requestDate.startOf('day').toISOString();
+    const timeMax = requestDate.endOf('day').toISOString();
 
     // Get events from all requested calendars
     const eventPromises = calendarIds.map(async (calendarId) => {
@@ -214,6 +215,7 @@ export async function getCalendarEvents(calendarIds: string[], date: string) {
         timeMax,
         singleEvents: true,
         orderBy: 'startTime',
+        timeZone: 'Europe/Paris',
       });
 
       // Map Google Calendar events to our app format
