@@ -662,9 +662,13 @@ const processPurchaseOrder = async (
       if (isUpdate && purchaseOrder.orderPdfId) {
         await deleteFileFromDrive(purchaseOrder.orderPdfId);
       }
+
+      // Determine the prefix based on whether it's a quote (devis) or purchase order
+      const filePrefix = orderData.devis ? 'devis_' : 'bon_commande_';
+
       const { id: fileId } = await uploadFileToDrive(
         pdfFile?.buffer,
-        `bon_commande_${purchaseOrder.id}_${purchaseOrder.clientFirstName}_${purchaseOrder.clientLastName}.pdf`,
+        `${filePrefix}${purchaseOrder.id}_${purchaseOrder.clientFirstName}_${purchaseOrder.clientLastName}.pdf`,
         'application/pdf',
         'PURCHASE_ORDERS',
       );
@@ -1166,6 +1170,7 @@ purchaseOrdersRoutes.patch(
             orderPdfId: true,
             clientFirstName: true,
             clientLastName: true,
+            devis: true,
           },
         });
 
@@ -1181,10 +1186,19 @@ purchaseOrdersRoutes.patch(
           await deleteFileFromDrive(currentOrder.orderPdfId);
         }
 
+        // Determine if this is a quote based on the new value or the existing value
+        const isDevis =
+          devis !== undefined
+            ? devis === 'true' || devis === true
+            : currentOrder.devis;
+
+        // Set the appropriate prefix based on whether it's a quote or purchase order
+        const filePrefix = isDevis ? 'devis_' : 'bon_commande_';
+
         // Upload the new PDF
         const { id: newFileId } = await uploadFileToDrive(
           pdfBuffer,
-          `bon_commande_${id}_${currentOrder.clientFirstName || ''}_${currentOrder.clientLastName || ''}.pdf`,
+          `${filePrefix}${id}_${currentOrder.clientFirstName || ''}_${currentOrder.clientLastName || ''}.pdf`,
           'application/pdf',
           'PURCHASE_ORDERS',
         );
