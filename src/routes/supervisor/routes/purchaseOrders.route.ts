@@ -269,6 +269,7 @@ const processPurchaseOrder = async (
     hasAppointment,
     isInstalled,
     isInvoiced,
+    devis,
     validUntil,
     bankAccountNumber,
     deleteInvoice,
@@ -401,6 +402,7 @@ const processPurchaseOrder = async (
           isInstalled !== undefined ? isInstalled : existingOrder!.isInstalled,
         isInvoiced:
           isInvoiced !== undefined ? isInvoiced : existingOrder!.isInvoiced,
+        devis: devis !== undefined ? devis : existingOrder!.devis,
         validUntil:
           validUntil !== undefined
             ? validUntil && validUntil.trim() !== ''
@@ -436,6 +438,7 @@ const processPurchaseOrder = async (
         hasAppointment: hasAppointment || false,
         isInstalled: isInstalled || false,
         isInvoiced: isInvoiced || false,
+        devis: devis || null,
         validUntil:
           validUntil && validUntil.trim() !== '' ? new Date(validUntil) : null,
         photosPaths: [], // Initialize empty for new orders
