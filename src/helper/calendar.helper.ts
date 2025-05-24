@@ -12,19 +12,22 @@ export const calendarEntretienId: string =
   process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!;
 export const calendarRentalId: string = process.env.GOOGLE_CALENDAR_RENTAL_ID!;
 
-if (!calendarEntretienId) {
-  throw new Error(
-    'GOOGLE_CALENDAR_ENTRETIEN_ID environment variable is required',
-  );
-}
+// Check if any required environment variables are missing
+const requiredEnvVars = [
+  'GOOGLE_CALENDAR_GENERAL_ID',
+  'GOOGLE_CALENDAR_GENERAL_NAME',
+  'GOOGLE_CALENDAR_ENTRETIEN_ID',
+  'GOOGLE_CALENDAR_RENTAL_ID',
+  'GOOGLE_CALENDAR_PURCHASE_ORDERS_ID',
+  'CALENDAR_ID_PHONE_CALLBACKS',
+  'KEY_FILE',
+];
 
-if (!calendarRentalId) {
-  throw new Error('GOOGLE_CALENDAR_RENTAL_ID environment variable is required');
-}
-
-if (!process.env.KEY_FILE) {
-  throw new Error('KEY_FILE environment variable is required');
-}
+requiredEnvVars.forEach((envVar) => {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+});
 
 // we use calendar api authenticated with google oauth2 instead of service account
 // because only google workspace accounts are allowed to add attendees to events with service account
@@ -164,6 +167,11 @@ export const getEventsFromIdList = async (
 
 // Available calendars with their metadata
 export const AVAILABLE_CALENDARS = [
+  {
+    id: process.env.GOOGLE_CALENDAR_GENERAL_ID!,
+    name: process.env.GOOGLE_CALENDAR_GENERAL_NAME!,
+    color: '#000000',
+  },
   {
     id: process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!,
     name: 'Entretien',

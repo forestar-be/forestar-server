@@ -104,7 +104,9 @@ jobs:
             echo \"# Backup configuration\" >> .env.docker && \
             echo \"RUN_BACKUP_ON_STARTUP=${{ secrets.RUN_BACKUP_ON_STARTUP || 'false' }}\" >> .env.docker && \
             echo \"BACKUP_GDRIVE_FOLDER_ID=${{ secrets.BACKUP_GDRIVE_FOLDER_ID }}\" >> .env.docker && \
-            echo \"DEVIS_BASE_DIR=${{ secrets.DEVIS_BASE_DIR }}\" >> .env.docker"
+            echo \"DEVIS_BASE_DIR=${{ secrets.DEVIS_BASE_DIR }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_GENERAL_ID=${{ secrets.GOOGLE_CALENDAR_GENERAL_ID }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_GENERAL_NAME=${{ secrets.GOOGLE_CALENDAR_GENERAL_NAME }}\" >> .env.docker"
 
       - name: Update docker compose
         run: |
