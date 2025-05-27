@@ -1,23 +1,25 @@
 require('dotenv').config();
 
 import { initMaintenanceReminderCron } from './helper/maintenanceReminder';
-import rentalMngtRoutes from './routes/rentalMngtRoutes';
-import rentalOperatorRoutes from './routes/rentalOperatorRoutes';
+import rentalMngtRoutes from './routes/rentalMngt.routes';
+import rentalOperatorRoutes from './routes/rentalOperator.routes';
 import { initRefreshTokenCron } from './helper/authGoogle';
 import authenticateImageAccess from './middleware/imageAuthMiddleware';
+import clientPurchaseOrdersDevisSignatureMiddleware from './middleware/clientPurchaseOrdersDevisSignature.middleware';
 import fs from 'fs';
 import ggAuthMiddleware from './middleware/ggAuthMiddleware';
-import ggAuthRoutes from './routes/ggAuthRoutes';
+import ggAuthRoutes from './routes/ggAuth.routes';
 import supervisorRoutes from './routes/supervisor/supervisor.routes';
+import clientPurchaseOrdersDevisSignatureRoutes from './routes/clientPurchaseOrdersDevisSignature.route';
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const logger = require('./config/logger');
 const publicAuthMiddleware = require('./middleware/publicAuthMiddleware');
-const publicSiteRoutes = require('./routes/publicSiteRoutes');
+const publicSiteRoutes = require('./routes/publicSite.routes');
 const authMiddleware = require('./middleware/authMiddleware');
-const operatorRoutes = require('./routes/operatorRoutes');
-const adminRoutes = require('./routes/adminRoutes');
+const operatorRoutes = require('./routes/operator.routes');
+const adminRoutes = require('./routes/admin.routes');
 const rateLimit = require('express-rate-limit');
 const { initPingCron } = require('./helper/pingInterval');
 
@@ -53,8 +55,20 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for client purchase orders - more generous than login but still protected
+const clientPurchaseOrderLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // 20 requests per 5 minutes
+  message: 'Trop de requêtes, veuillez réessayer plus tard.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Apply to all routes ending with /login
 app.use(/\/.*\/login$/, loginLimiter);
+
+// Apply to client purchase order routes
+app.use('/client/purchase-orders', clientPurchaseOrderLimiter);
 
 // Middleware to log each request
 app.use((req, res, next) => {
@@ -88,6 +102,11 @@ app.use('/supervisor', [authMiddleware, ggAuthMiddleware], supervisorRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
 app.use('/rental-mngt', [authMiddleware, ggAuthMiddleware], rentalMngtRoutes);
 app.use('/rental-operator', authMiddleware, rentalOperatorRoutes);
+app.use(
+  '/client/purchase-orders/devis/signature',
+  clientPurchaseOrdersDevisSignatureMiddleware,
+  clientPurchaseOrdersDevisSignatureRoutes,
+);
 app.use('/', publicAuthMiddleware, publicSiteRoutes); // must be last
 
 // Error-handling middleware

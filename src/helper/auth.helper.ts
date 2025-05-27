@@ -6,6 +6,16 @@ const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
 
 const saltRounds = 10;
 
+export const generatePassword = (length: number = 10): string => {
+  const charset =
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+[]{}|;:,.<>?';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+};
+
 export const hashPassword = async (password: string) => {
   return await bcrypt.hash(password, saltRounds);
 };

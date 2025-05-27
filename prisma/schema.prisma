@@ -211,7 +211,10 @@ model PurchaseOrder {
   clientAddress    String
   clientCity       String
   clientPhone      String
+  clientEmail      String   @default("")
   deposit          Float    @default(0)
+  devisSignatureAccessToken String? // Token for accessing the devis
+  emailDevisSent   Boolean   @default(false)
   
   // Robot details
   robotInventoryId Int
