@@ -1,10 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 
-function asyncHandler(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<any>,
-) {
-  return function (req: Request, res: Response, next: NextFunction) {
-    Promise.resolve(fn(req, res, next)).catch(next);
+function asyncHandler<T extends Request = Request>(
+  fn: (req: T, res: Response, next: NextFunction) => Promise<any>,
+): RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve(fn(req as T, res, next)).catch(next);
   };
 }
 

@@ -66,7 +66,7 @@ async function uploadFileToDrive(fileBuffer, fileName, mimeType, folderKey) {
 /**
  * Retrieves a file from Google Drive by ID and returns its content as a buffer
  * @param {string} fileId - The ID of the file in Google Drive
- * @returns {Promise<{fileBuffer: Buffer, fileName: string}>} - The file content as a buffer and the file name
+ * @returns {Promise<{fileBuffer: Buffer, fileName: string, mimeType: string}>} - The file content as a buffer and the file name
  */
 async function getFileFromDrive(fileId) {
   try {
@@ -117,4 +117,4 @@ async function deleteFileFromDrive(fileId) {
   }
 }
 
-module.exports = { uploadFileToDrive, getFileFromDrive, deleteFileFromDrive };
+export { uploadFileToDrive, getFileFromDrive, deleteFileFromDrive };

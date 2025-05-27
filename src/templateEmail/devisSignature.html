@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Contrat de Location</title>
+    <title>Votre devis Forestar</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -66,6 +66,14 @@
         color: #333333;
         margin-top: 0;
       }
+      ul {
+        padding-left: 20px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+      }
+      li {
+        margin-bottom: 8px;
+      }
       .greeting {
         margin-top: 8px;
         margin-bottom: 16px;
@@ -74,24 +82,46 @@
   </head>
   <body>
     <div class="container">
-      <div class="banner">FORESTAR</div>      <div class="content">
-        <h3 class="greeting">Bonjour {{client_first_name}},</h3>
+      <div class="banner">FORESTAR</div>
+      <div class="content">
+        <h3 class="greeting">
+          Bonjour {{client_first_name}} {{client_last_name}},
+        </h3>
         <p>
-          Veuillez trouver ci-joint votre contrat de location pour la machine
-          {{machine_name}}.
+          Nous sommes ravis de vous informer que votre devis est prêt pour
+          consultation et signature.
         </p>
+
         <p>
-          Ce document contient tous les termes et conditions relatifs à votre
-          location.
+          Vous pouvez accéder à votre devis et le signer électroniquement en
+          cliquant sur le bouton ci-dessous :
         </p>
-        
+
+        <div style="text-align: center; margin: 20px 0px 30px 0">
+          <a href="{{signature_url}}" class="button" style="color: white !important;"
+            >Consulter et signer mon devis</a
+          >
+        </div>
+
+        <div class="info">
+          <p style="margin: 0 0 8px 0">
+            <strong>Informations sur votre commande :</strong>
+          </p>
+          <ul>
+            <li>Robot: {{robot_name}}</li>
+            {{#has_antenna}}
+            <li>Antenne: {{antenna_name}}</li>
+            {{/has_antenna}} {{#has_plugin}}
+            <li>Plugin: {{plugin_name}}</li>
+            {{/has_plugin}} {{#has_shelter}}
+            <li>Abri: {{shelter_name}}</li>
+            {{/has_shelter}}
+          </ul>
+        </div>
+
         <p>
-          Si vous avez des questions concernant ce contrat, n'hésitez pas à nous
-          contacter.
-        </p>
-        <p>
-          Nous vous remercions pour votre confiance et restons à votre
-          disposition.
+          Si vous avez des questions concernant votre devis, n'hésitez pas à
+          nous contacter.
         </p>
 
         <p>
@@ -100,7 +130,7 @@
         </p>
       </div>
       <div class="footer">
-        <p>Forestar - Tous droits réservés</p>
+        <p>© {{current_year}} Forestar - Tous droits réservés</p>
         <p>Ce message a été généré automatiquement.</p>
       </div>
     </div>
