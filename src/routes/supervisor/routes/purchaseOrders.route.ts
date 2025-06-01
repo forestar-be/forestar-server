@@ -602,302 +602,308 @@ const processPurchaseOrder = async (
       };
 
   // Create or update purchase order using transaction to ensure atomicity
-  const result = await prisma.$transaction(async (tx) => {
-    // Create or update the purchase order
-    let purchaseOrder;
+  const result = await prisma.$transaction(
+    async (tx) => {
+      // Create or update the purchase order
+      let purchaseOrder;
 
-    if (isUpdate) {
-      purchaseOrder = await tx.purchaseOrder.update({
-        where: { id: parseInt(id) },
-        data: orderDataForDb,
-        include: {
-          robotInventory: true,
-          antenna: true,
-          plugin: true,
-          shelter: true,
-        },
-      });
-
-      // Handle inventory updates for edit case
-      // Get the creation date of the original order to determine inventory year
-      const orderDate = new Date(existingOrder!.createdAt);
-      const inventoryYear = orderDate.getFullYear();
-
-      // Check if robot has changed
-      if (
-        robotInventoryId &&
-        robotInventoryId !== existingOrder!.robotInventoryId
-      ) {
-        // Restore old robot inventory
-        await restoreInventoryItem(
-          tx,
-          existingOrder!.robotInventoryId,
-          inventoryYear,
-        );
-        // Update new robot inventory
-        await updateInventoryForItem(tx, robotInventoryId, inventoryYear);
-      }
-
-      // Check if antenna has changed
-      if (antennaInventoryId !== existingOrder!.antennaInventoryId) {
-        // If there was a previous antenna, restore its inventory
-        if (existingOrder!.antennaInventoryId) {
-          await restoreInventoryItem(
-            tx,
-            existingOrder!.antennaInventoryId,
-            inventoryYear,
-          );
-        }
-
-        // If there's a new antenna, update its inventory
-        if (antennaInventoryId) {
-          await updateInventoryForItem(tx, antennaInventoryId, inventoryYear);
-        }
-      }
-
-      // Check if plugin has changed
-      if (pluginInventoryId !== existingOrder!.pluginInventoryId) {
-        // If there was a previous plugin, restore its inventory
-        if (existingOrder!.pluginInventoryId) {
-          await restoreInventoryItem(
-            tx,
-            existingOrder!.pluginInventoryId,
-            inventoryYear,
-          );
-        }
-
-        // If there's a new plugin, update its inventory
-        if (pluginInventoryId) {
-          await updateInventoryForItem(tx, pluginInventoryId, inventoryYear);
-        }
-      }
-
-      // Check if shelter has changed
-      if (shelterInventoryId !== existingOrder!.shelterInventoryId) {
-        // If there was a previous shelter, restore its inventory
-        if (existingOrder!.shelterInventoryId) {
-          await restoreInventoryItem(
-            tx,
-            existingOrder!.shelterInventoryId,
-            inventoryYear,
-          );
-        }
-
-        // If there's a new shelter, update its inventory
-        if (shelterInventoryId) {
-          await updateInventoryForItem(tx, shelterInventoryId, inventoryYear);
-        }
-      }
-
-      // Handle invoice deletion if requested
-      if (deleteInvoice && existingOrder!.invoicePath) {
-        deleteInvoiceFile(existingOrder!.invoicePath);
-      }
-
-      // Handle photos to delete if any
-      if (Array.isArray(photosToDelete) && photosToDelete.length > 0) {
-        // Get existing photos
-        const existingPhotos = existingOrder!.photosPaths || [];
-        const updatedPhotos = existingPhotos.filter(
-          (path) => !photosToDelete.includes(path),
-        );
-
-        // Delete photo files
-        photosToDelete.forEach((photoPath: string) => {
-          deletePhotoFile(photoPath);
+      if (isUpdate) {
+        purchaseOrder = await tx.purchaseOrder.update({
+          where: { id: parseInt(id) },
+          data: orderDataForDb,
+          include: {
+            robotInventory: true,
+            antenna: true,
+            plugin: true,
+            shelter: true,
+          },
         });
 
-        // Update photos array in database
+        // Handle inventory updates for edit case
+        // Get the creation date of the original order to determine inventory year
+        const orderDate = new Date(existingOrder!.createdAt);
+        const inventoryYear = orderDate.getFullYear();
+
+        // Check if robot has changed
+        if (
+          robotInventoryId &&
+          robotInventoryId !== existingOrder!.robotInventoryId
+        ) {
+          // Restore old robot inventory
+          await restoreInventoryItem(
+            tx,
+            existingOrder!.robotInventoryId,
+            inventoryYear,
+          );
+          // Update new robot inventory
+          await updateInventoryForItem(tx, robotInventoryId, inventoryYear);
+        }
+
+        // Check if antenna has changed
+        if (antennaInventoryId !== existingOrder!.antennaInventoryId) {
+          // If there was a previous antenna, restore its inventory
+          if (existingOrder!.antennaInventoryId) {
+            await restoreInventoryItem(
+              tx,
+              existingOrder!.antennaInventoryId,
+              inventoryYear,
+            );
+          }
+
+          // If there's a new antenna, update its inventory
+          if (antennaInventoryId) {
+            await updateInventoryForItem(tx, antennaInventoryId, inventoryYear);
+          }
+        }
+
+        // Check if plugin has changed
+        if (pluginInventoryId !== existingOrder!.pluginInventoryId) {
+          // If there was a previous plugin, restore its inventory
+          if (existingOrder!.pluginInventoryId) {
+            await restoreInventoryItem(
+              tx,
+              existingOrder!.pluginInventoryId,
+              inventoryYear,
+            );
+          }
+
+          // If there's a new plugin, update its inventory
+          if (pluginInventoryId) {
+            await updateInventoryForItem(tx, pluginInventoryId, inventoryYear);
+          }
+        }
+
+        // Check if shelter has changed
+        if (shelterInventoryId !== existingOrder!.shelterInventoryId) {
+          // If there was a previous shelter, restore its inventory
+          if (existingOrder!.shelterInventoryId) {
+            await restoreInventoryItem(
+              tx,
+              existingOrder!.shelterInventoryId,
+              inventoryYear,
+            );
+          }
+
+          // If there's a new shelter, update its inventory
+          if (shelterInventoryId) {
+            await updateInventoryForItem(tx, shelterInventoryId, inventoryYear);
+          }
+        }
+
+        // Handle invoice deletion if requested
+        if (deleteInvoice && existingOrder!.invoicePath) {
+          deleteInvoiceFile(existingOrder!.invoicePath);
+        }
+
+        // Handle photos to delete if any
+        if (Array.isArray(photosToDelete) && photosToDelete.length > 0) {
+          // Get existing photos
+          const existingPhotos = existingOrder!.photosPaths || [];
+          const updatedPhotos = existingPhotos.filter(
+            (path) => !photosToDelete.includes(path),
+          );
+
+          // Delete photo files
+          photosToDelete.forEach((photoPath: string) => {
+            deletePhotoFile(photoPath);
+          });
+
+          // Update photos array in database
+          await tx.purchaseOrder.update({
+            where: { id: purchaseOrder.id },
+            data: { photosPaths: updatedPhotos },
+          });
+
+          // Update local purchaseOrder object
+          purchaseOrder.photosPaths = updatedPhotos;
+        }
+      } else {
+        purchaseOrder = await tx.purchaseOrder.create({
+          data: orderDataForDb,
+          include: {
+            robotInventory: true,
+            antenna: true,
+            plugin: true,
+            shelter: true,
+          },
+        });
+
+        // Update inventory only on creation
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+
+        // Update robot inventory
+        await updateInventoryForItem(tx, robotInventoryId, currentYear);
+
+        // Update antenna inventory if selected
+        if (antennaInventoryId) {
+          await updateInventoryForItem(tx, antennaInventoryId, currentYear);
+        }
+
+        // Update plugin inventory if selected
+        if (pluginInventoryId) {
+          await updateInventoryForItem(tx, pluginInventoryId, currentYear);
+        }
+
+        // Update shelter inventory if selected
+        if (shelterInventoryId) {
+          await updateInventoryForItem(tx, shelterInventoryId, currentYear);
+        }
+      }
+
+      // Handle separate invoice file if it exists
+      let invoicePath = existingOrder?.invoicePath;
+      let invoiceFile = null;
+
+      if (files && files.invoice && files.invoice[0]) {
+        invoiceFile = files.invoice[0];
+      } else if (files && files.pdf && files.pdf[1]) {
+        // Handle case when both PDF and invoice are uploaded as array
+        invoiceFile = files.pdf[1];
+      }
+
+      if (invoiceFile) {
+        // If updating and there's an existing invoice, delete it
+        if (isUpdate && existingOrder!.invoicePath && !deleteInvoice) {
+          deleteInvoiceFile(existingOrder!.invoicePath);
+        }
+
+        // Save the new invoice file
+        const fileName = `invoice_${purchaseOrder.id}_${Date.now()}.pdf`;
+        invoicePath = await saveInvoiceFile(
+          invoiceFile.buffer,
+          purchaseOrder.id,
+          fileName,
+        );
+
+        // Update the purchase order with the invoice path
         await tx.purchaseOrder.update({
           where: { id: purchaseOrder.id },
-          data: { photosPaths: updatedPhotos },
+          data: { invoicePath },
+        });
+      }
+
+      // Handle photo uploads if they exist
+      if (files && files.photos) {
+        const photoFiles = files.photos;
+        const photosPaths = [...(purchaseOrder.photosPaths || [])];
+
+        // Process each photo
+        for (let i = 0; i < photoFiles.length; i++) {
+          const photoFile = photoFiles[i];
+          try {
+            const photoPath = await processAndSavePhoto(
+              photoFile.buffer,
+              purchaseOrder.id,
+              photosPaths.length,
+            );
+            photosPaths.push(photoPath);
+          } catch (error) {
+            logger.error(`Error processing photo ${i}:`, error);
+          }
+        }
+
+        // Update the purchase order with the photo paths
+        await tx.purchaseOrder.update({
+          where: { id: purchaseOrder.id },
+          data: { photosPaths },
         });
 
         // Update local purchaseOrder object
-        purchaseOrder.photosPaths = updatedPhotos;
-      }
-    } else {
-      purchaseOrder = await tx.purchaseOrder.create({
-        data: orderDataForDb,
-        include: {
-          robotInventory: true,
-          antenna: true,
-          plugin: true,
-          shelter: true,
-        },
-      });
-
-      // Update inventory only on creation
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-
-      // Update robot inventory
-      await updateInventoryForItem(tx, robotInventoryId, currentYear);
-
-      // Update antenna inventory if selected
-      if (antennaInventoryId) {
-        await updateInventoryForItem(tx, antennaInventoryId, currentYear);
+        purchaseOrder.photosPaths = photosPaths;
       }
 
-      // Update plugin inventory if selected
-      if (pluginInventoryId) {
-        await updateInventoryForItem(tx, pluginInventoryId, currentYear);
-      }
+      // Handle PDF upload
+      if (req.file || (files && files.pdf && files.pdf[0])) {
+        const pdfFile = req.file || files?.pdf?.[0];
 
-      // Update shelter inventory if selected
-      if (shelterInventoryId) {
-        await updateInventoryForItem(tx, shelterInventoryId, currentYear);
-      }
-    }
-
-    // Handle separate invoice file if it exists
-    let invoicePath = existingOrder?.invoicePath;
-    let invoiceFile = null;
-
-    if (files && files.invoice && files.invoice[0]) {
-      invoiceFile = files.invoice[0];
-    } else if (files && files.pdf && files.pdf[1]) {
-      // Handle case when both PDF and invoice are uploaded as array
-      invoiceFile = files.pdf[1];
-    }
-
-    if (invoiceFile) {
-      // If updating and there's an existing invoice, delete it
-      if (isUpdate && existingOrder!.invoicePath && !deleteInvoice) {
-        deleteInvoiceFile(existingOrder!.invoicePath);
-      }
-
-      // Save the new invoice file
-      const fileName = `invoice_${purchaseOrder.id}_${Date.now()}.pdf`;
-      invoicePath = await saveInvoiceFile(
-        invoiceFile.buffer,
-        purchaseOrder.id,
-        fileName,
-      );
-
-      // Update the purchase order with the invoice path
-      await tx.purchaseOrder.update({
-        where: { id: purchaseOrder.id },
-        data: { invoicePath },
-      });
-    }
-
-    // Handle photo uploads if they exist
-    if (files && files.photos) {
-      const photoFiles = files.photos;
-      const photosPaths = [...(purchaseOrder.photosPaths || [])];
-
-      // Process each photo
-      for (let i = 0; i < photoFiles.length; i++) {
-        const photoFile = photoFiles[i];
-        try {
-          const photoPath = await processAndSavePhoto(
-            photoFile.buffer,
-            purchaseOrder.id,
-            photosPaths.length,
-          );
-          photosPaths.push(photoPath);
-        } catch (error) {
-          logger.error(`Error processing photo ${i}:`, error);
+        if (isUpdate && purchaseOrder.orderPdfId) {
+          await deleteFileFromDrive(purchaseOrder.orderPdfId, false);
         }
+
+        // Determine the prefix based on whether it's a quote (devis) or purchase order
+        const filePrefix = orderData.devis ? 'devis_' : 'bon_commande_';
+
+        const { id: fileId } = await uploadFileToDrive(
+          pdfFile?.buffer,
+          `${filePrefix}${purchaseOrder.id}_${purchaseOrder.clientFirstName}_${purchaseOrder.clientLastName}.pdf`,
+          'application/pdf',
+          'PURCHASE_ORDERS',
+        );
+
+        // Update the purchase order with the PDF ID
+        await tx.purchaseOrder.update({
+          where: { id: purchaseOrder.id },
+          data: { orderPdfId: fileId },
+        });
+
+        purchaseOrder.orderPdfId = fileId;
       }
 
-      // Update the purchase order with the photo paths
-      await tx.purchaseOrder.update({
-        where: { id: purchaseOrder.id },
-        data: { photosPaths },
-      });
-
-      // Update local purchaseOrder object
-      purchaseOrder.photosPaths = photosPaths;
-    }
-
-    // Handle PDF upload
-    if (req.file || (files && files.pdf && files.pdf[0])) {
-      const pdfFile = req.file || files?.pdf?.[0];
-
-      if (isUpdate && purchaseOrder.orderPdfId) {
-        await deleteFileFromDrive(purchaseOrder.orderPdfId);
-      }
-
-      // Determine the prefix based on whether it's a quote (devis) or purchase order
-      const filePrefix = orderData.devis ? 'devis_' : 'bon_commande_';
-
-      const { id: fileId } = await uploadFileToDrive(
-        pdfFile?.buffer,
-        `${filePrefix}${purchaseOrder.id}_${purchaseOrder.clientFirstName}_${purchaseOrder.clientLastName}.pdf`,
-        'application/pdf',
-        'PURCHASE_ORDERS',
-      );
-
-      // Update the purchase order with the PDF ID
-      await tx.purchaseOrder.update({
-        where: { id: purchaseOrder.id },
-        data: { orderPdfId: fileId },
-      });
-
-      purchaseOrder.orderPdfId = fileId;
-    }
-
-    // Handle calendar event
-    if (isUpdate) {
-      // Update/create/delete event if needed
-      if (installationDate !== undefined) {
-        if (installationDate) {
-          const eventId = await createOrUpdateCalendarEventPurchaseOrder({
-            eventId: existingOrder!.eventId,
-            summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
-            description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
+      // Handle calendar event
+      if (isUpdate) {
+        // Update/create/delete event if needed
+        if (installationDate !== undefined) {
+          if (installationDate) {
+            const eventId = await createOrUpdateCalendarEventPurchaseOrder({
+              eventId: existingOrder!.eventId,
+              summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+              description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
   Adresse: ${purchaseOrder.clientAddress}
   Téléphone: ${purchaseOrder.clientPhone}`,
-            location: purchaseOrder.clientAddress,
-            startDate: new Date(installationDate),
-            endDate: new Date(installationDate),
-            attendees: [],
-          });
+              location: purchaseOrder.clientAddress,
+              startDate: new Date(installationDate),
+              endDate: new Date(installationDate),
+              attendees: [],
+            });
 
-          if (eventId && !existingOrder!.eventId) {
+            if (eventId && !existingOrder!.eventId) {
+              await tx.purchaseOrder.update({
+                where: { id: purchaseOrder.id },
+                data: { eventId },
+              });
+              purchaseOrder.eventId = eventId;
+            }
+          } else if (existingOrder!.eventId) {
+            // If installation date removed, delete event
+            await deleteEvent(
+              existingOrder!.eventId,
+              GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
+            );
             await tx.purchaseOrder.update({
               where: { id: purchaseOrder.id },
-              data: { eventId },
+              data: { eventId: null },
             });
-            purchaseOrder.eventId = eventId;
+            purchaseOrder.eventId = null;
           }
-        } else if (existingOrder!.eventId) {
-          // If installation date removed, delete event
-          await deleteEvent(
-            existingOrder!.eventId,
-            GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
-          );
-          await tx.purchaseOrder.update({
-            where: { id: purchaseOrder.id },
-            data: { eventId: null },
-          });
-          purchaseOrder.eventId = null;
         }
-      }
-    } else if (installationDate) {
-      // For new orders, create event if installationDate is provided
-      const eventId = await createOrUpdateCalendarEventPurchaseOrder({
-        summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
-        description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
+      } else if (installationDate) {
+        // For new orders, create event if installationDate is provided
+        const eventId = await createOrUpdateCalendarEventPurchaseOrder({
+          summary: `Installation robot - ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}`,
+          description: `Installation robot ${purchaseOrder.robotInventory.name} pour ${purchaseOrder.clientFirstName} ${purchaseOrder.clientLastName}
   Adresse: ${purchaseOrder.clientAddress}
   Téléphone: ${purchaseOrder.clientPhone}`,
-        location: purchaseOrder.clientAddress,
-        startDate: new Date(installationDate),
-        endDate: new Date(installationDate),
-        attendees: [],
-      });
+          location: purchaseOrder.clientAddress,
+          startDate: new Date(installationDate),
+          endDate: new Date(installationDate),
+          attendees: [],
+        });
 
-      await tx.purchaseOrder.update({
-        where: { id: purchaseOrder.id },
-        data: { eventId },
-      });
-      purchaseOrder.eventId = eventId;
-    }
+        await tx.purchaseOrder.update({
+          where: { id: purchaseOrder.id },
+          data: { eventId },
+        });
+        purchaseOrder.eventId = eventId;
+      }
 
-    return purchaseOrder;
-  });
+      return purchaseOrder;
+    },
+    {
+      maxWait: 60 * 1000,
+      timeout: 2 * 60 * 1000,
+    },
+  );
 
   if (!isUpdate && result.devis === true) {
     await sendDevisEmail(result);

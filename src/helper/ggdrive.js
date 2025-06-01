@@ -105,14 +105,19 @@ async function getFileFromDrive(fileId) {
  * @param {string} fileId - The ID of the file in Google Drive to delete
  * @returns {Promise<void>}
  */
-async function deleteFileFromDrive(fileId) {
+async function deleteFileFromDrive(fileId, throwIfNotFound = true) {
   try {
     logger.info(`Deleting file from Google Drive: ${fileId}`);
     await drive.files.delete({
       fileId: fileId,
     });
   } catch (error) {
+    console.log(JSON.stringify(error));
     logger.error('Error deleting file from Google Drive:', error);
+    if (error.code === 404 && !throwIfNotFound) {
+      logger.warn(`File with ID ${fileId} not found, skipping deletion.`);
+      return;
+    }
     throw error;
   }
 }
