@@ -5,17 +5,26 @@ import {
   deleteEvent,
 } from '../../../helper/calendar.helper';
 import asyncHandler from '../../../helper/asyncHandler';
-import { Prisma, PrismaClient } from '@prisma/client';
+import {
+  Prisma,
+  PrismaClient,
+  PurchaseOrder,
+  RobotInventory,
+} from '@prisma/client';
 import { DefaultArgs } from '@prisma/client/runtime/library';
 import fs from 'node:fs';
 import path from 'path';
 import sharp from 'sharp';
+import { sendEmail } from '../../../helper/mailer';
+import logger from '../../../config/logger';
+import { generatePassword, hashPassword } from '../../../helper/auth.helper';
+import bcrypt from 'bcrypt';
 
-const {
+import {
   uploadFileToDrive,
   getFileFromDrive,
   deleteFileFromDrive,
-} = require('../../../helper/ggdrive');
+} from '../../../helper/ggdrive';
 
 const prisma = new PrismaClient();
 const multer = require('multer');
@@ -38,9 +47,7 @@ if (!fs.existsSync(DEVIS_FOLDER) || !fs.statSync(DEVIS_FOLDER).isDirectory()) {
   );
 }
 
-const PHOTOS_FOLDER = path.join(DEVIS_FOLDER, 'photos');
-
-// Create photos directory if it doesn't exist
+const PHOTOS_FOLDER = path.join(DEVIS_FOLDER, 'photos'); // Create photos directory if it doesn't exist
 if (!fs.existsSync(PHOTOS_FOLDER)) {
   fs.mkdirSync(PHOTOS_FOLDER, { recursive: true });
 }
@@ -51,6 +58,12 @@ if (!GOOGLE_CALENDAR_PURCHASE_ORDERS_ID) {
 
 if (!CALENDAR_ID_PHONE_CALLBACKS) {
   throw new Error('CALENDAR_ID_PHONE_CALLBACKS is not defined');
+}
+
+const SIGNATURE_URL_TEMPLATE = process.env.SIGNATURE_URL_TEMPLATE;
+
+if (!SIGNATURE_URL_TEMPLATE) {
+  throw new Error('SIGNATURE_URL_TEMPLATE is not defined');
 }
 
 // Add this helper function to handle calendar event creation and updates
@@ -210,7 +223,144 @@ const deleteInvoiceFile = (invoicePath: string) => {
   }
 };
 
-// Helper function to process purchase order creation and updates
+const sendDevisEmail = async (
+  purchaseOrder: {
+    robotInventory: RobotInventory | null;
+    plugin: RobotInventory | null;
+    antenna: RobotInventory | null;
+    shelter: RobotInventory | null;
+  } & PurchaseOrder,
+) => {
+  if (!purchaseOrder.clientEmail) {
+    throw new Error(
+      `Le mail du client est manquant pour le devis ${purchaseOrder.id}`,
+    );
+  }
+
+  try {
+    // generate access token
+    const token = generatePassword(15);
+
+    // Generate signature URL by replacing {id} with the purchase order ID
+    const signatureUrl = SIGNATURE_URL_TEMPLATE.replace(
+      '{id}',
+      purchaseOrder.id.toString(),
+    ).replace('{token}', encodeURIComponent(token));
+
+    // Read the email template
+    const templatePath = path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      'templateEmail',
+      'devisSignature.html',
+    );
+
+    let html = fs.readFileSync(templatePath, 'utf8');
+
+    // Replace placeholders
+    html = html.replace(
+      /{{client_first_name}}/g,
+      purchaseOrder.clientFirstName || '',
+    );
+    html = html.replace(
+      /{{client_last_name}}/g,
+      purchaseOrder.clientLastName || '',
+    );
+    html = html.replace(/{{signature_url}}/g, signatureUrl || '');
+    html = html.replace(
+      /{{robot_name}}/g,
+      purchaseOrder.robotInventory?.name || '',
+    );
+    html = html.replace(
+      /{{current_year}}/g,
+      new Date().getFullYear().toString(),
+    );
+
+    // Handle conditional elements
+    if (purchaseOrder.antennaInventoryId) {
+      html = html.replace(/{{#has_antenna}}/g, '');
+      html = html.replace(/{{\/has_antenna}}/g, '');
+      html = html.replace(
+        /{{antenna_name}}/g,
+        purchaseOrder.antenna?.name || '',
+      );
+    } else {
+      // Remove antenna section
+      const startAntennaTag = '{{#has_antenna}}';
+      const endAntennaTag = '{{/has_antenna}}';
+      const startIndex = html.indexOf(startAntennaTag);
+      if (startIndex !== -1) {
+        const endIndex =
+          html.indexOf(endAntennaTag, startIndex) + endAntennaTag.length;
+        html = html.substring(0, startIndex) + html.substring(endIndex);
+      }
+    }
+
+    if (purchaseOrder.pluginInventoryId) {
+      html = html.replace(/{{#has_plugin}}/g, '');
+      html = html.replace(/{{\/has_plugin}}/g, '');
+      html = html.replace(/{{plugin_name}}/g, purchaseOrder.plugin?.name || '');
+    } else {
+      // Remove plugin section
+      const startPluginTag = '{{#has_plugin}}';
+      const endPluginTag = '{{/has_plugin}}';
+      const startIndex = html.indexOf(startPluginTag);
+      if (startIndex !== -1) {
+        const endIndex =
+          html.indexOf(endPluginTag, startIndex) + endPluginTag.length;
+        html = html.substring(0, startIndex) + html.substring(endIndex);
+      }
+    }
+
+    if (purchaseOrder.shelterInventoryId) {
+      html = html.replace(/{{#has_shelter}}/g, '');
+      html = html.replace(/{{\/has_shelter}}/g, '');
+      html = html.replace(
+        /{{shelter_name}}/g,
+        purchaseOrder.shelter?.name || '',
+      );
+    } else {
+      // Remove shelter section
+      const startShelterTag = '{{#has_shelter}}';
+      const endShelterTag = '{{/has_shelter}}';
+      const startIndex = html.indexOf(startShelterTag);
+      if (startIndex !== -1) {
+        const endIndex =
+          html.indexOf(endShelterTag, startIndex) + endShelterTag.length;
+        html = html.substring(0, startIndex) + html.substring(endIndex);
+      }
+    }
+
+    const tokenHashed = await hashPassword(token);
+
+    // Send the email
+    await sendEmail({
+      to: purchaseOrder.clientEmail,
+      subject: `Votre devis Forestar pour le robot ${purchaseOrder.robotInventory?.name || ''}`,
+      html,
+      replyTo: process.env.REPLY_TO,
+      fromName: 'Forestar Shop Atelier',
+    });
+
+    await prisma.purchaseOrder.update({
+      where: { id: purchaseOrder.id },
+      data: {
+        devisSignatureAccessToken: tokenHashed,
+        emailDevisSent: true,
+      },
+    });
+
+    logger.info(
+      `Devis signature email sent to ${purchaseOrder.clientEmail} for purchase order ${purchaseOrder.id}`,
+    );
+  } catch (error) {
+    logger.error(`Failed to send devis signature email: ${error}`);
+    throw error;
+  }
+};
+
 const processPurchaseOrder = async (
   req: express.Request,
   res: express.Response,
@@ -253,6 +403,7 @@ const processPurchaseOrder = async (
     clientAddress,
     clientCity,
     clientPhone,
+    clientEmail,
     deposit,
     robotInventoryId,
     serialNumber,
@@ -277,7 +428,10 @@ const processPurchaseOrder = async (
   } = orderData;
 
   // Validate required fields for new orders
-  if (!isUpdate && (!clientFirstName || !clientLastName || !robotInventoryId)) {
+  if (
+    !isUpdate &&
+    (!clientFirstName || !clientLastName || !robotInventoryId || !clientEmail)
+  ) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -351,6 +505,8 @@ const processPurchaseOrder = async (
           clientCity !== undefined ? clientCity : existingOrder!.clientCity,
         clientPhone:
           clientPhone !== undefined ? clientPhone : existingOrder!.clientPhone,
+        clientEmail:
+          clientEmail !== undefined ? clientEmail : existingOrder!.clientEmail,
         deposit: deposit !== undefined ? deposit : existingOrder!.deposit,
         robotInventoryId: robotInventoryId || existingOrder!.robotInventoryId,
         serialNumber:
@@ -422,6 +578,7 @@ const processPurchaseOrder = async (
         clientAddress: clientAddress || '',
         clientCity: clientCity || '',
         clientPhone: clientPhone || '',
+        clientEmail: clientEmail || '',
         deposit: deposit || 0,
         robotInventoryId,
         serialNumber: serialNumber || '',
@@ -641,7 +798,7 @@ const processPurchaseOrder = async (
           );
           photosPaths.push(photoPath);
         } catch (error) {
-          console.error(`Error processing photo ${i}:`, error);
+          logger.error(`Error processing photo ${i}:`, error);
         }
       }
 
@@ -741,6 +898,10 @@ const processPurchaseOrder = async (
 
     return purchaseOrder;
   });
+
+  if (!isUpdate && result.devis === true) {
+    await sendDevisEmail(result);
+  }
 
   // Return purchase order data
   res.status(isUpdate ? 200 : 201).json(result);
@@ -967,7 +1128,7 @@ purchaseOrdersRoutes.delete(
             GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
           );
         } catch (error) {
-          console.error('Failed to delete calendar event:', error);
+          logger.error('Failed to delete calendar event:', error);
         }
       }
 
@@ -976,7 +1137,7 @@ purchaseOrdersRoutes.delete(
         try {
           await deleteFileFromDrive(existingOrder.orderPdfId);
         } catch (error) {
-          console.error('Failed to delete PDF from drive:', error);
+          logger.error('Failed to delete PDF from drive:', error);
         }
       }
 
@@ -985,7 +1146,7 @@ purchaseOrdersRoutes.delete(
         try {
           deleteInvoiceFile(existingOrder.invoicePath);
         } catch (error) {
-          console.error('Failed to delete invoice file:', error);
+          logger.error('Failed to delete invoice file:', error);
         }
       }
 
@@ -995,7 +1156,7 @@ purchaseOrdersRoutes.delete(
           try {
             deletePhotoFile(photoPath);
           } catch (error) {
-            console.error('Failed to delete photo file:', error);
+            logger.error('Failed to delete photo file:', error);
           }
         });
       }
@@ -1077,7 +1238,6 @@ const restoreInventoryItem = async (
   }
 };
 
-// Get PDF for a purchase order
 purchaseOrdersRoutes.get(
   '/:id/pdf',
   asyncHandler(async (req, res) => {
@@ -1096,7 +1256,6 @@ purchaseOrdersRoutes.get(
       // Get file from Google Drive
       const { fileBuffer, fileName, mimeType } = await getFileFromDrive(
         existingOrder.orderPdfId,
-        'PURCHASE_ORDERS',
       );
 
       // Set response headers
@@ -1106,7 +1265,7 @@ purchaseOrdersRoutes.get(
       // Send file
       res.send(fileBuffer);
     } catch (error) {
-      console.error('Failed to get PDF from drive:', error);
+      logger.error('Failed to get PDF from drive:', error);
       res.status(500).json({
         message: 'Failed to get PDF',
         error: (error as Error).message,
@@ -1220,10 +1379,39 @@ purchaseOrdersRoutes.patch(
 
       res.json(updatedOrder);
     } catch (error) {
-      console.error('Error updating purchase order status:', error);
+      logger.error('Error updating purchase order status:', error);
       res
         .status(500)
         .json({ message: 'Failed to update purchase order status' });
+    }
+  }),
+);
+
+purchaseOrdersRoutes.post(
+  '/:id/send-devis-signature-email',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const purchaseOrder = await prisma.purchaseOrder.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        robotInventory: true,
+        antenna: true,
+        plugin: true,
+        shelter: true,
+      },
+    });
+    if (!purchaseOrder) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+    if (!purchaseOrder.clientEmail) {
+      return res.status(400).json({ message: 'Client email is required' });
+    }
+    try {
+      await sendDevisEmail(purchaseOrder);
+      res.json({ message: 'Devis signature email sent successfully' });
+    } catch (error) {
+      logger.error('Error sending devis signature email:', error);
+      res.status(500).json({ message: 'Failed to send devis signature email' });
     }
   }),
 );
