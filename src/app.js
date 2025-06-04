@@ -35,6 +35,8 @@ if (!fs.existsSync(IMAGES_BASE_DIR)) {
   logger.info(`Created images directory at ${IMAGES_BASE_DIR}`);
 }
 
+app.set('trust proxy', true);
+
 // Middleware CORS
 app.use(
   cors({
