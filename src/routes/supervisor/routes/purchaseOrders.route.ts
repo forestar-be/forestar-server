@@ -18,13 +18,13 @@ import sharp from 'sharp';
 import { sendEmail } from '../../../helper/mailer';
 import logger from '../../../config/logger';
 import { generatePassword, hashPassword } from '../../../helper/auth.helper';
-import bcrypt from 'bcrypt';
 
 import {
   uploadFileToDrive,
   getFileFromDrive,
   deleteFileFromDrive,
 } from '../../../helper/ggdrive';
+import purchaseOrderCache from '../../../services/purchaseOrderCache';
 
 const prisma = new PrismaClient();
 const multer = require('multer');
@@ -344,10 +344,17 @@ const sendDevisEmail = async (
       fromName: 'Forestar Shop Atelier',
     });
 
+    // Limit the array to the last 20 tokens
+    const devisSignatureAccessTokenArray = [
+      ...(purchaseOrder.devisSignatureAccessTokenArray || []),
+      tokenHashed,
+    ].slice(-20);
+
+    purchaseOrderCache.invalidate(purchaseOrder.id);
     await prisma.purchaseOrder.update({
       where: { id: purchaseOrder.id },
       data: {
-        devisSignatureAccessToken: tokenHashed,
+        devisSignatureAccessTokenArray,
         emailDevisSent: true,
       },
     });
@@ -596,6 +603,7 @@ const processPurchaseOrder = async (
         isInstalled: isInstalled || false,
         isInvoiced: isInvoiced || false,
         devis: devis || null,
+        bankAccountNumber: bankAccountNumber || null,
         validUntil:
           validUntil && validUntil.trim() !== '' ? new Date(validUntil) : null,
         photosPaths: [], // Initialize empty for new orders
@@ -608,6 +616,7 @@ const processPurchaseOrder = async (
       let purchaseOrder;
 
       if (isUpdate) {
+        purchaseOrderCache.invalidate(parseInt(id));
         purchaseOrder = await tx.purchaseOrder.update({
           where: { id: parseInt(id) },
           data: orderDataForDb,
@@ -708,6 +717,7 @@ const processPurchaseOrder = async (
             deletePhotoFile(photoPath);
           });
 
+          purchaseOrderCache.invalidate(purchaseOrder.id);
           // Update photos array in database
           await tx.purchaseOrder.update({
             where: { id: purchaseOrder.id },
@@ -776,6 +786,7 @@ const processPurchaseOrder = async (
           fileName,
         );
 
+        purchaseOrderCache.invalidate(purchaseOrder.id);
         // Update the purchase order with the invoice path
         await tx.purchaseOrder.update({
           where: { id: purchaseOrder.id },
@@ -803,6 +814,7 @@ const processPurchaseOrder = async (
           }
         }
 
+        purchaseOrderCache.invalidate(purchaseOrder.id);
         // Update the purchase order with the photo paths
         await tx.purchaseOrder.update({
           where: { id: purchaseOrder.id },
@@ -831,6 +843,7 @@ const processPurchaseOrder = async (
           'PURCHASE_ORDERS',
         );
 
+        purchaseOrderCache.invalidate(purchaseOrder.id);
         // Update the purchase order with the PDF ID
         await tx.purchaseOrder.update({
           where: { id: purchaseOrder.id },
@@ -858,6 +871,7 @@ const processPurchaseOrder = async (
             });
 
             if (eventId && !existingOrder!.eventId) {
+              purchaseOrderCache.invalidate(purchaseOrder.id);
               await tx.purchaseOrder.update({
                 where: { id: purchaseOrder.id },
                 data: { eventId },
@@ -870,6 +884,7 @@ const processPurchaseOrder = async (
               existingOrder!.eventId,
               GOOGLE_CALENDAR_PURCHASE_ORDERS_ID,
             );
+            purchaseOrderCache.invalidate(purchaseOrder.id);
             await tx.purchaseOrder.update({
               where: { id: purchaseOrder.id },
               data: { eventId: null },
@@ -890,6 +905,7 @@ const processPurchaseOrder = async (
           attendees: [],
         });
 
+        purchaseOrderCache.invalidate(purchaseOrder.id);
         await tx.purchaseOrder.update({
           where: { id: purchaseOrder.id },
           data: { eventId },
@@ -1201,6 +1217,7 @@ purchaseOrdersRoutes.delete(
         );
       }
 
+      purchaseOrderCache.invalidate(existingOrder.id);
       // Delete purchase order
       await tx.purchaseOrder.delete({
         where: { id: parseInt(id) },
@@ -1372,8 +1389,10 @@ purchaseOrdersRoutes.patch(
         updateData.orderPdfId = newFileId;
       }
 
+      const idParsed = parseInt(id);
+      purchaseOrderCache.invalidate(idParsed);
       const updatedOrder = await prisma.purchaseOrder.update({
-        where: { id: parseInt(id) },
+        where: { id: idParsed },
         data: updateData,
         include: {
           robotInventory: true,

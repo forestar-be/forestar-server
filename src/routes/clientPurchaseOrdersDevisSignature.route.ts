@@ -7,9 +7,15 @@ import {
   getFileFromDrive,
   deleteFileFromDrive,
 } from '../helper/ggdrive';
+import fs from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { RequestClientPurchaseOrdersDevisSignature } from '../types/clientPurchaseOrdersDevisSignature.types';
-
+import purchaseOrderCache from '../services/purchaseOrderCache';
+import path from 'path';
+const DEVIS_FOLDER = process.env.DEVIS_BASE_DIR;
+if (!DEVIS_FOLDER) {
+  throw new Error('DEVIS_BASE_DIR is not defined');
+}
 const clientPurchaseOrdersDevisSignatureRoutes = express.Router();
 const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -133,8 +139,10 @@ clientPurchaseOrdersDevisSignatureRoutes.patch(
       // Add the PDF ID to the update data
       updateData.orderPdfId = newFileId;
 
+      const idInt = parseInt(id);
+      purchaseOrderCache.invalidate(idInt);
       await prisma.purchaseOrder.update({
-        where: { id: parseInt(id) },
+        where: { id: idInt },
         data: updateData,
         include: {
           robotInventory: true,
@@ -149,6 +157,42 @@ clientPurchaseOrdersDevisSignatureRoutes.patch(
       });
     },
   ),
+);
+
+clientPurchaseOrdersDevisSignatureRoutes.get(
+  '/photo/:photoIndex',
+  asyncHandler(async (req: RequestClientPurchaseOrdersDevisSignature, res) => {
+    const { photoIndex } = req.params;
+
+    const { purchaseOrder } = req;
+    const id = req.query.id as string;
+
+    if (
+      !purchaseOrder ||
+      !purchaseOrder.photosPaths ||
+      purchaseOrder.photosPaths.length <= parseInt(photoIndex)
+    ) {
+      return res.status(404).json({ message: 'Photo not found' });
+    }
+
+    const photoPath = purchaseOrder.photosPaths[parseInt(photoIndex)];
+    const fullPath = path.join(DEVIS_FOLDER, photoPath);
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ message: 'Photo file not found' });
+    }
+
+    // Set headers
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="photo_${id}_${photoIndex}.webp"`,
+    );
+
+    // Stream the file
+    const fileStream = fs.createReadStream(fullPath);
+    fileStream.pipe(res);
+  }),
 );
 
 export default clientPurchaseOrdersDevisSignatureRoutes;

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import logger from '../config/logger';
 import prisma from '../helper/prisma';
 import { RequestClientPurchaseOrdersDevisSignature } from '../types/clientPurchaseOrdersDevisSignature.types';
+import { getOrFetchFromCache } from '../services/cacheService';
 
 export async function clientPurchaseOrdersDevisSignatureMiddleware(
   req: RequestClientPurchaseOrdersDevisSignature,
@@ -26,33 +27,54 @@ export async function clientPurchaseOrdersDevisSignatureMiddleware(
   }
 
   try {
-    // Find the purchase order by ID
-    const purchaseOrder = await prisma.purchaseOrder.findUnique({
-      where: { id: parseInt(id as string) },
-      include: {
-        robotInventory: true,
-        antenna: true,
-        plugin: true,
-        shelter: true,
+    // Find the purchase order by ID using cache
+    const purchaseOrder = await getOrFetchFromCache(
+      'purchaseOrder',
+      parseInt(id as string),
+      async () => {
+        return prisma.purchaseOrder.findUnique({
+          where: { id: parseInt(id as string) },
+          include: {
+            robotInventory: true,
+            antenna: true,
+            plugin: true,
+            shelter: true,
+          },
+        });
       },
-    });
+    );
 
     if (!purchaseOrder) {
       return res.status(404).json({ message: 'Purchase order not found' });
     }
 
     // Verify the token
-    if (!purchaseOrder.devisSignatureAccessToken) {
+    if (
+      !purchaseOrder.devisSignatureAccessTokenArray ||
+      !purchaseOrder.devisSignatureAccessTokenArray.length
+    ) {
       return res
         .status(401)
         .json({ message: 'Purchase order has no access token configured' });
     }
 
-    // Compare the provided token against the stored hash
-    const isValid = await bcrypt.compare(
-      token.toString(),
-      purchaseOrder.devisSignatureAccessToken,
-    );
+    // Compare the provided token against any of the stored hashes in the array, from last to first, stopping as soon as possible
+    let isValid = false;
+    for (
+      let i = purchaseOrder.devisSignatureAccessTokenArray.length - 1;
+      i >= 0;
+      i--
+    ) {
+      if (
+        await bcrypt.compare(
+          token.toString(),
+          purchaseOrder.devisSignatureAccessTokenArray[i],
+        )
+      ) {
+        isValid = true;
+        break;
+      }
+    }
 
     if (!isValid) {
       return res.status(401).json({ message: 'Invalid access token' });
