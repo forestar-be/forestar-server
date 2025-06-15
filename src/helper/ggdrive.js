@@ -122,4 +122,19 @@ async function deleteFileFromDrive(fileId, throwIfNotFound = true) {
   }
 }
 
-export { uploadFileToDrive, getFileFromDrive, deleteFileFromDrive };
+/**
+ * Generates a shareable Google Drive link from a file ID
+ * @param {string} fileId - The ID of the file in Google Drive
+ * @returns {string} - A shareable Google Drive link
+ */
+function generateDriveLink(fileId) {
+  if (!fileId) return '';
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
+export {
+  uploadFileToDrive,
+  getFileFromDrive,
+  deleteFileFromDrive,
+  generateDriveLink,
+};

@@ -12,6 +12,8 @@ import { PrismaClient } from '@prisma/client';
 import { RequestClientPurchaseOrdersDevisSignature } from '../types/clientPurchaseOrdersDevisSignature.types';
 import purchaseOrderCache from '../services/purchaseOrderCache';
 import path from 'path';
+import { sendEmail } from '../helper/mailer';
+import { generateDevisSignatureConfirmationEmailContent } from '../helper/devisSignature.helper';
 const DEVIS_FOLDER = process.env.DEVIS_BASE_DIR;
 if (!DEVIS_FOLDER) {
   throw new Error('DEVIS_BASE_DIR is not defined');
@@ -141,7 +143,7 @@ clientPurchaseOrdersDevisSignatureRoutes.patch(
 
       const idInt = parseInt(id);
       purchaseOrderCache.invalidate(idInt);
-      await prisma.purchaseOrder.update({
+      const updatedOrder = await prisma.purchaseOrder.update({
         where: { id: idInt },
         data: updateData,
         include: {
@@ -151,6 +153,23 @@ clientPurchaseOrdersDevisSignatureRoutes.patch(
           shelter: true,
         },
       });
+
+      // Send email notification to the company address
+      try {
+        // Generate email content and send notification to company address
+        await sendEmail({
+          to: process.env.REPLY_TO!,
+          subject: `Confirmation de signature de devis - ${updatedOrder.clientFirstName} ${updatedOrder.clientLastName}`,
+          html: generateDevisSignatureConfirmationEmailContent(updatedOrder),
+          fromName: 'Forestar',
+        });
+        logger.info(`Signature confirmation email sent for order ${idInt}`);
+      } catch (emailError) {
+        // Log error but don't fail the request if email sending fails
+        logger.error(
+          `Failed to send signature confirmation email: ${emailError}`,
+        );
+      }
 
       return res.status(200).json({
         message: 'Mise à jour effectuée avec succès',

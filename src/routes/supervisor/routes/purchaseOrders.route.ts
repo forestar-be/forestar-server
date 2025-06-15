@@ -18,6 +18,7 @@ import sharp from 'sharp';
 import { sendEmail } from '../../../helper/mailer';
 import logger from '../../../config/logger';
 import { generatePassword, hashPassword } from '../../../helper/auth.helper';
+import { generateDevisSignatureConfirmationEmailContent } from '../../../helper/devisSignature.helper';
 
 import {
   uploadFileToDrive,
@@ -1401,6 +1402,27 @@ purchaseOrdersRoutes.patch(
           shelter: true,
         },
       });
+
+      // Check if devis is changing from true to false - conversion from quote to purchase order
+      if (devis === 'false' || devis === false) {
+        // Send email notification to the company address
+        try {
+          await sendEmail({
+            to: process.env.REPLY_TO!,
+            subject: `Confirmation de signature de devis - ${updatedOrder.clientFirstName} ${updatedOrder.clientLastName}`,
+            html: generateDevisSignatureConfirmationEmailContent(updatedOrder),
+            fromName: 'Forestar',
+          });
+          logger.info(
+            `Signature confirmation email sent for order ${idParsed}`,
+          );
+        } catch (emailError) {
+          // Log error but don't fail the request if email sending fails
+          logger.error(
+            `Failed to send signature confirmation email: ${emailError}`,
+          );
+        }
+      }
 
       res.json(updatedOrder);
     } catch (error) {

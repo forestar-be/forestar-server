@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirmation de signature de devis</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #f4f4f4;
+      }
+      .container {
+        max-width: 600px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        margin: 20px auto;
+      }
+      .banner {
+        background: linear-gradient(90deg, #e63946, #333333);
+        padding: 15px 15px;
+        text-align: center;
+        color: white;
+        font-size: 30px;
+        font-weight: bold;
+      }
+      .content {
+        padding: 30px;
+        background-color: #ffffff;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+        color: #666;
+        background-color: #f9f9f9;
+        border-top: 1px solid #eeeeee;
+      }
+      .info {
+        margin-top: 15px;
+        margin-bottom: 10px;
+        padding: 12px 16px;
+        background-color: #f9f9f9;
+        border-left: 4px solid #e63946;
+        border-radius: 4px;
+      }
+      h2 {
+        color: #333333;
+        margin-top: 0;
+      }
+      ul {
+        padding-left: 20px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+      }
+      li {
+        margin-bottom: 8px;
+      }
+      .greeting {
+        margin-top: 8px;
+        margin-bottom: 16px;
+      }
+      .button {
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #e63946;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        transition: background-color 0.3s;
+      }
+      .button:hover {
+        background-color: #d62836;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="banner">FORESTAR</div>
+      <div class="content">
+        <h2>Confirmation de signature de devis</h2>
+        <p>
+          Un client vient de signer un devis et de le convertir en bon de
+          commande.
+        </p>
+
+        <div class="info">
+          <p style="margin: 0 0 8px 0">
+            <strong>Informations sur la commande :</strong>
+          </p>
+          <ul>
+            <li>
+              <strong>Nom du client :</strong> {{client_first_name}}
+              {{client_last_name}}
+            </li>
+            <li><strong>Email du client :</strong> {{client_email}}</li>
+            <li><strong>Numéro de commande :</strong> {{order_id}}</li>
+            <li><strong>Date de signature :</strong> {{signature_date}}</li>
+            <li><strong>Robot :</strong> {{robot_name}}</li>
+            {{#has_antenna}}
+            <li><strong>Antenne :</strong> {{antenna_name}}</li>
+            {{/has_antenna}} {{#has_plugin}}
+            <li><strong>Plugin :</strong> {{plugin_name}}</li>
+            {{/has_plugin}} {{#has_shelter}}
+            <li><strong>Abri :</strong> {{shelter_name}}</li>
+            {{/has_shelter}}
+          </ul>
+        </div>
+
+        <p>
+          Le bon de commande signé est disponible sur Google Drive et sur
+          forestar shop atelier.
+        </p>
+
+        <div style="text-align: center; margin: 20px 0">
+          <a
+            href="{{drive_link}}"
+            target="_blank"
+            class="button"
+            style="color: white !important"
+          >
+            Consulter le PDF signé
+          </a>
+
+          <p style="text-align: center; font-size: 12px; color: #666">
+            Ou copiez ce lien :
+            <span style="font-family: monospace">{{drive_link}}</span>
+          </p>
+        </div>
+
+        <p>
+          Cordialement,<br />
+          Le système automatique Forestar
+        </p>
+      </div>
+      <div class="footer">
+        <p>© {{current_year}} Forestar - Tous droits réservés</p>
+        <p>Ce message a été généré automatiquement.</p>
+      </div>
+    </div>
+  </body>
+</html>
