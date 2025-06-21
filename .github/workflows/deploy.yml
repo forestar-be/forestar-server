@@ -107,6 +107,7 @@ jobs:
             echo \"DEVIS_BASE_DIR=${{ secrets.DEVIS_BASE_DIR }}\" >> .env.docker && \
             echo \"GOOGLE_CALENDAR_GENERAL_ID=${{ secrets.GOOGLE_CALENDAR_GENERAL_ID }}\" >> .env.docker && \
             echo \"GOOGLE_CALENDAR_GENERAL_NAME=${{ secrets.GOOGLE_CALENDAR_GENERAL_NAME }}\" >> .env.docker && \
+            echo \"GOOGLE_CALENDAR_REPAIRS_ID=${{ secrets.GOOGLE_CALENDAR_REPAIRS_ID }}\" >> .env.docker && \
             echo \"SIGNATURE_URL_TEMPLATE=${{ secrets.SIGNATURE_URL_TEMPLATE }}\" >> .env.docker"
 
       - name: Update docker compose

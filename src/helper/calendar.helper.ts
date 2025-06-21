@@ -11,6 +11,8 @@ dayjs.extend(utc);
 export const calendarEntretienId: string =
   process.env.GOOGLE_CALENDAR_ENTRETIEN_ID!;
 export const calendarRentalId: string = process.env.GOOGLE_CALENDAR_RENTAL_ID!;
+export const calendarRepairsId: string =
+  process.env.GOOGLE_CALENDAR_REPAIRS_ID!;
 
 // Check if any required environment variables are missing
 const requiredEnvVars = [
@@ -20,6 +22,7 @@ const requiredEnvVars = [
   'GOOGLE_CALENDAR_RENTAL_ID',
   'GOOGLE_CALENDAR_PURCHASE_ORDERS_ID',
   'CALENDAR_ID_PHONE_CALLBACKS',
+  'GOOGLE_CALENDAR_REPAIRS_ID',
   'KEY_FILE',
 ];
 
@@ -191,6 +194,11 @@ export const AVAILABLE_CALENDARS = [
     id: process.env.CALENDAR_ID_PHONE_CALLBACKS!,
     name: 'Rappels téléphoniques',
     color: '#F4B400',
+  },
+  {
+    id: process.env.GOOGLE_CALENDAR_REPAIRS_ID!,
+    name: 'Réparations',
+    color: '#9C27B0',
   },
 ];
 

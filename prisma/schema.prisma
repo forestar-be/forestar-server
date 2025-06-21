@@ -42,6 +42,8 @@ model MachineRepair {
   client_call_times     DateTime[]
   hivernage             Boolean                      @default(false)
   robot_type_name       String?
+  eventId               String?
+  calendarId            String?
   brand_id              Brand?                       @relation("MachineRepairBrand", fields: [brand_name], references: [name])
   machine_type_id       MachineType?                 @relation("MachineRepairMachineType", fields: [machine_type_name], references: [name])
   repairer_id           Repairer?                    @relation("MachineRepairRepairer", fields: [repairer_name], references: [name])

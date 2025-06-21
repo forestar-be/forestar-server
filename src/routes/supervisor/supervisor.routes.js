@@ -33,6 +33,7 @@ const GOOGLE_CALENDAR_PURCHASE_ORDERS_ID =
   process.env.GOOGLE_CALENDAR_PURCHASE_ORDERS_ID;
 const SUPERVISOR_SECRET_KEY = process.env.SUPERVISOR_SECRET_KEY;
 const CALENDAR_ID_PHONE_CALLBACKS = process.env.CALENDAR_ID_PHONE_CALLBACKS;
+const GOOGLE_CALENDAR_REPAIRS_ID = process.env.GOOGLE_CALENDAR_REPAIRS_ID;
 
 if (!GOOGLE_CALENDAR_PURCHASE_ORDERS_ID) {
   throw new Error('GOOGLE_CALENDAR_PURCHASE_ORDERS_ID is not defined');
@@ -40,6 +41,10 @@ if (!GOOGLE_CALENDAR_PURCHASE_ORDERS_ID) {
 
 if (!CALENDAR_ID_PHONE_CALLBACKS) {
   throw new Error('CALENDAR_ID_PHONE_CALLBACKS is not defined');
+}
+
+if (!GOOGLE_CALENDAR_REPAIRS_ID) {
+  throw new Error('GOOGLE_CALENDAR_REPAIRS_ID is not defined');
 }
 
 // sub routes for /purchase-orders
@@ -1591,6 +1596,167 @@ supervisorRoutes.post(
     });
 
     res.json(updatedTexts);
+  }),
+);
+
+// === Repair Calendar Events ===
+// Create a calendar event for a repair
+supervisorRoutes.post(
+  '/repair-calendar-event',
+  asyncHandler(async (req, res) => {
+    const { repairId, title, description, startDate, endDate, isFullDay } =
+      req.body;
+
+    if (!repairId || !title || !startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required fields: repairId, title, startDate, endDate',
+      });
+    }
+
+    try {
+      // Check if repair exists
+      const repair = await prisma.machineRepair.findUnique({
+        where: { id: parseInt(repairId) },
+      });
+
+      if (!repair) {
+        return res.status(404).json({ error: 'Repair not found' });
+      }
+
+      // Check if repair already has an event
+      if (repair.eventId) {
+        return res.status(409).json({
+          error: 'Repair already has a calendar event',
+          eventId: repair.eventId,
+        });
+      }
+
+      // Create the calendar event
+      const eventId = await createEvent(
+        {
+          summary: title,
+          description:
+            description ||
+            `Réparation #${repairId} - ${repair.first_name} ${repair.last_name}`,
+          start: new Date(startDate),
+          end: new Date(endDate),
+        },
+        GOOGLE_CALENDAR_REPAIRS_ID,
+        [], // No attendees for now
+        isFullDay !== false, // Default to full day unless explicitly set to false
+      );
+
+      // Update the repair with the event ID
+      const updatedRepair = await prisma.machineRepair.update({
+        where: { id: parseInt(repairId) },
+        data: { eventId, calendarId: GOOGLE_CALENDAR_REPAIRS_ID },
+      });
+
+      logger.info(`Calendar event created for repair ${repairId}: ${eventId}`);
+
+      res.json({
+        success: true,
+        eventId,
+        repair: updatedRepair,
+      });
+    } catch (error) {
+      logger.error('Error creating repair calendar event:', error);
+      res.status(500).json({ error: 'Failed to create calendar event' });
+    }
+  }),
+);
+
+// Update a calendar event for a repair
+supervisorRoutes.put(
+  '/repair-calendar-event/:repairId',
+  asyncHandler(async (req, res) => {
+    const { repairId } = req.params;
+    const { title, description, startDate, endDate, isFullDay } = req.body;
+
+    try {
+      // Get the repair with event ID
+      const repair = await prisma.machineRepair.findUnique({
+        where: { id: parseInt(repairId) },
+      });
+
+      if (!repair) {
+        return res.status(404).json({ error: 'Repair not found' });
+      }
+
+      if (!repair.eventId) {
+        return res.status(404).json({ error: 'Repair has no calendar event' });
+      }
+
+      // Update the calendar event
+      await updateEvent(
+        repair.eventId,
+        {
+          summary: title,
+          description: description,
+          start: startDate ? new Date(startDate) : undefined,
+          end: endDate ? new Date(endDate) : undefined,
+        },
+        GOOGLE_CALENDAR_REPAIRS_ID,
+        [], // No attendees for now
+        isFullDay !== false,
+      );
+
+      logger.info(
+        `Calendar event updated for repair ${repairId}: ${repair.eventId}`,
+      );
+
+      res.json({
+        success: true,
+        eventId: repair.eventId,
+      });
+    } catch (error) {
+      logger.error('Error updating repair calendar event:', error);
+      res.status(500).json({ error: 'Failed to update calendar event' });
+    }
+  }),
+);
+
+// Delete a calendar event for a repair
+supervisorRoutes.delete(
+  '/repair-calendar-event/:repairId',
+  asyncHandler(async (req, res) => {
+    const { repairId } = req.params;
+
+    try {
+      // Get the repair with event ID
+      const repair = await prisma.machineRepair.findUnique({
+        where: { id: parseInt(repairId) },
+      });
+
+      if (!repair) {
+        return res.status(404).json({ error: 'Repair not found' });
+      }
+
+      if (!repair.eventId) {
+        return res.status(404).json({ error: 'Repair has no calendar event' });
+      }
+
+      // Delete the calendar event
+      await deleteEvent(repair.eventId, GOOGLE_CALENDAR_REPAIRS_ID);
+
+      // Remove the event ID from the repair
+      await prisma.machineRepair.update({
+        where: { id: parseInt(repairId) },
+        data: { eventId: null },
+      });
+
+      logger.info(
+        `Calendar event deleted for repair ${repairId}: ${repair.eventId}`,
+      );
+
+      res.json({
+        success: true,
+        message: 'Calendar event deleted successfully',
+      });
+    } catch (error) {
+      logger.error('Error deleting repair calendar event:', error);
+      res.status(500).json({ error: 'Failed to delete calendar event' });
+    }
   }),
 );
 
