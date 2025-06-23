@@ -19,6 +19,7 @@ const publicAuthMiddleware = require('./middleware/publicAuthMiddleware');
 const publicSiteRoutes = require('./routes/publicSite.routes');
 const authMiddleware = require('./middleware/authMiddleware');
 const operatorRoutes = require('./routes/operator.routes');
+const installerRoutes = require('./routes/installer.routes');
 const adminRoutes = require('./routes/admin.routes');
 const rateLimit = require('express-rate-limit');
 const { initPingCron } = require('./helper/pingInterval');
@@ -100,6 +101,7 @@ app.use('/images', express.static(IMAGES_BASE_DIR));
 // Routes
 app.use('/auth-google', authMiddleware, ggAuthRoutes);
 app.use('/operator', authMiddleware, operatorRoutes);
+app.use('/installer', authMiddleware, installerRoutes);
 app.use('/supervisor', [authMiddleware, ggAuthMiddleware], supervisorRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
 app.use('/rental-mngt', [authMiddleware, ggAuthMiddleware], rentalMngtRoutes);

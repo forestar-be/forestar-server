@@ -7,12 +7,13 @@
   "scripts": {
     "build": "tsc && cp -R src/templateEmail dist/templateEmail",
     "start": "node dist/app.js",
-    "dev": "nodemon -r ts-node/register --watch src --ext js,ts,json src/app.js",
-    "debug": "nodemon --inspect -r ts-node/register --watch src --ext js,ts,json src/app.js",
+    "dev": "nodemon -r ts-node/register --watch src --ext js,ts,json,tsx src/app.js",
+    "debug": "nodemon --inspect -r ts-node/register --watch src --ext js,ts,json,tsx src/app.js",
     "generate-prisma": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
+    "@react-pdf/renderer": "^4.3.0",
     "@supabase/supabase-js": "^2.45.6",
     "@types/sharp": "^0.31.1",
     "axios": "^1.7.7",
@@ -29,7 +30,8 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.15",
-    "pdfkit": "^0.16.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "sharp": "^0.34.1",
     "winston": "^3.14.2",
     "winston-daily-rotate-file": "^5.0.0"
@@ -44,6 +46,8 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.16",
     "@types/pdfkit": "^0.13.9",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "eslint": "^9.23.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-import": "^2.31.0",

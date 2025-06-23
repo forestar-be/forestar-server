@@ -6,6 +6,7 @@ const OPERATOR_SECRET_KEY = process.env.OPERATOR_SECRET_KEY;
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
 const RENTAL_MANAGER_SECRET_KEY = process.env.RENTAL_MANAGER_SECRET_KEY;
 const RENTAL_OPERATOR_SECRET_KEY = process.env.RENTAL_OPERATOR_SECRET_KEY;
+const INSTALLER_SECRET_KEY = process.env.INSTALLER_SECRET_KEY;
 
 // check if all keys are set
 if (
@@ -13,7 +14,8 @@ if (
   !OPERATOR_SECRET_KEY ||
   !ADMIN_SECRET_KEY ||
   !RENTAL_MANAGER_SECRET_KEY ||
-  !RENTAL_OPERATOR_SECRET_KEY
+  !RENTAL_OPERATOR_SECRET_KEY ||
+  !INSTALLER_SECRET_KEY
 ) {
   throw new Error('All keys must be set');
 }
@@ -30,6 +32,8 @@ const getKey = (role) => {
       return ADMIN_SECRET_KEY;
     case 'RENTAL_OPERATOR':
       return RENTAL_OPERATOR_SECRET_KEY;
+    case 'INSTALLER':
+      return INSTALLER_SECRET_KEY;
     default:
       return null;
   }
@@ -40,6 +44,7 @@ const allowedRoutesByRole = {
   RENTAL_MANAGER: ['/rental-mngt', '/auth-google'],
   OPERATOR: ['/operator'],
   RENTAL_OPERATOR: ['/rental-operator'],
+  INSTALLER: ['/installer'],
 };
 
 function authenticateToken(req, res, next) {

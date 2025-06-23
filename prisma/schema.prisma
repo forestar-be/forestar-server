@@ -234,11 +234,24 @@ model PurchaseOrder {
   wireLength       Int?
   hasAntennaSupport Boolean  @default(false)
   hasPlacement     Boolean   @default(false)
-  
   // Installation
   installationDate DateTime?
   needsInstaller   Boolean   @default(false)
   installationNotes String?
+  installerName    String?
+  installationCompletedAt DateTime?
+  
+  // Installation completion details
+  robotInstalled          Boolean @default(false)
+  pluginInstalled         Boolean @default(false)
+  antennaInstalled        Boolean @default(false)
+  shelterInstalled        Boolean @default(false)
+  wireInstalled           Boolean @default(false)
+  antennaSupportInstalled Boolean @default(false)
+  placementCompleted      Boolean @default(false)
+  missingItems           String?
+  additionalComments     String?
+  installationPdfId      String?
   
   // Status fields
   hasAppointment   Boolean   @default(false)
@@ -328,6 +341,7 @@ enum Role {
   ADMIN
   RENTAL_MANAGER
   RENTAL_OPERATOR
+  INSTALLER
 }
 
 enum MaintenanceType {

@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import e from 'express';
 import { PrismaClient, Role } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import logger from '../config/logger';
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY;
 
 const saltRounds = 10;
@@ -27,40 +28,48 @@ export async function doLogin(
   key: string,
   prisma: PrismaClient,
 ) {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ message: 'Veuillez remplir tous les champs.' });
+    if (!username || !password) {
+      return res
+        .status(400)
+        .json({ message: 'Veuillez remplir tous les champs.' });
+    }
+
+    // Find user by username
+    const user = await prisma.user.findUnique({
+      where: { username, role: { in: [role, 'ADMIN'] } },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    // Compare the password
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ message: 'Mot de passe incorrect.' });
+    }
+
+    const keyToUse = user.role === 'ADMIN' ? ADMIN_SECRET_KEY! : key;
+
+    const token = jwt.sign(user, keyToUse, {
+      expiresIn: '1d',
+    });
+    const expiresAt = Date.now() + 1 * 24 * 60 * 60 * 1000;
+
+    res.json({
+      authentificated: true,
+      token,
+      expiresAt,
+      isAdmin: user.role === 'ADMIN',
+    });
+  } catch (error) {
+    logger.error(`Error during login: ${error} - ${(error as Error).stack}`);
+    res.status(500).json({
+      message:
+        "Une erreur est survenue lors de la connexion. Veuillez réessayer, si le problème persiste, contactez l'administrateur.",
+    });
   }
-
-  // Find user by username
-  const user = await prisma.user.findUnique({
-    where: { username, role: { in: [role, 'ADMIN'] } },
-  });
-
-  if (!user) {
-    return res.status(404).json({ message: 'Utilisateur non trouvé.' });
-  }
-
-  // Compare the password
-  const passwordMatch = await bcrypt.compare(password, user.password);
-  if (!passwordMatch) {
-    return res.status(401).json({ message: 'Mot de passe incorrect.' });
-  }
-
-  const keyToUse = user.role === 'ADMIN' ? ADMIN_SECRET_KEY! : key;
-
-  const token = jwt.sign(user, keyToUse, {
-    expiresIn: '1d',
-  });
-  const expiresAt = Date.now() + 1 * 24 * 60 * 60 * 1000;
-
-  res.json({
-    authentificated: true,
-    token,
-    expiresAt,
-    isAdmin: user.role === 'ADMIN',
-  });
 }
